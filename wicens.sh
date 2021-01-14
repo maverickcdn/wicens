@@ -1559,7 +1559,7 @@ F_send_mail() {
 	done
 	
 	# user_custom_script 'wait' call
-	if [ -n "$user_custom_script" ] && [ "$user_custom_script_w" = 'w' ] ; then
+	if [ -n "$user_custom_script" ] && [ "$user_custom_script_w" = 'w' ] && [ "$passed_options" != 'test' ] ; then
 		(sh "$user_custom_script_decoded") & custom_script_pid=$!
 		F_log_this "Executed custom script $user_custom_script_decoded and put in background with PID $custom_script_pid"
 		F_terminal_check_ok "Started user custom script and put in background"
