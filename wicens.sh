@@ -15,7 +15,7 @@
 # github.com/maverickcdn/wicens
 
 # START ---------------------------------------------------------------------------------------------------------------
-script_version='1.00'
+script_version='1.10'
 
 #################################################
 saved_wan_ip=''
@@ -51,8 +51,6 @@ F_log_and_terminal_ok() { F_terminal_check_ok "$1" ;F_log_this "$1" ;}
 F_ctrlc_clean() { printf "\n%b Script interrupted...\n" "$tTERMHASH" ; F_clean_exit ;}
 trap F_ctrlc_clean INT
 script_start_time=$(cut -f1 -d ' ' '/proc/uptime' | tr -d '.' )
-run_date=$(date +%c)
-run_epoch=$(date +%s)
 [ -z "$saved_wan_epoch" ] && saved_wan_epoch="$(date +%s)"
 passed_options="$1"
 script_name_full="/jffs/scripts/$(basename "$0")"
@@ -2175,11 +2173,33 @@ if [ -f "/tmp/wicens.lock" ]; then
 fi # end of wicens.lock and wicenssendmail.lock
 # locks dont exist/removed continue below
 
+F_lock_create			# v1.10  moved, locked before ntp check
+
+# ntp time wait   
+if [ "$(nvram get ntp_ready)" -eq 0 ] ; then			# v1.10
+	ntp_wait_time=0
+	while [ "$(nvram get ntp_ready)" -eq 0 ] && [ "$ntp_wait_time" -lt 300 ] ; do
+		ntp_wait_time="$((ntp_wait_time + 1))"
+		if [ "$ntp_wait_time" -eq 120 ]; then
+			F_log_and_show "Waiting for NTP to sync, 2 mins have passed, waiting 3 more mins"
+		fi
+		sleep 1
+	done
+	if [ "$ntp_wait_time" -ge 300 ] ; then
+		F_log_and_show "NTP failed to sync and update router time after 5 mins"
+		F_log_and_show "Please check your NTP date/time settings"
+		F_clean_exit
+	fi
+fi
+
+run_date=$(date +%c)			# v1.10  moved from global
+run_epoch=$(date +%s)			# v1.10  moved from global
+
 # check args start run
 case "$1" in
 	'cron'|'wancall'|'test') ;;
 	'') until F_main_menu ; do : ; done ;;
-	*) printf "\n%b %s is an invalid option\n" "$tTERMHASH" "$1" && exit 0 ;;
+	*) printf "\n%b %s is an invalid option\n" "$tTERMHASH" "$1" && F_clean_exit ;;
 esac
 
 # check settings exist
@@ -2191,6 +2211,7 @@ if ! F_settings_test; then  # check after arguments (dont move up)
 	else
 		[ "$passed_options" != 'manual' ] && F_log_this "CRITICAL ERROR, no/incorrect Email config found in this script"
 		[ "$passed_options" != 'manual' ] && F_log_this "run '/jffs/scripts/wicens.sh' to add a config to this script"
+		F_clean_exit
 	fi
 fi
 
@@ -2202,7 +2223,7 @@ fi
 # user_pswd for script to use
 [ -n "$user_pswd" ] && user_pswd=$(echo "$user_pswd" | openssl enc -md sha512 -pbkdf2 -aes-256-cbc -d -a -pass pass:"$(nvram get boardnum | sed 's/://g')" )
 
-F_lock_create   # lock script no duplication
+# F_lock_create   # lock script no duplication			v1.10 moved up
 
 # test mode after settings test and pswd conversion
 [ "$passed_options" = 'test' ] && F_opt_test
@@ -2236,8 +2257,8 @@ fi
 if [ "$1" = 'wancall' ]; then
 	new_wancall_count="$((wancall_run_count + 1))"
 	F_log_this "Started by 'wan-event connected' trigger, sleeping 90s, wait for WAN DHCP/NTP to catch up"
-	sleep 90   # wait for dhcp/ntp on reboot to catch up
-	run_date="$(date +%c)"   # date could be May 4/5 Dec 31 etc in $run_date on reboot wan-event connect, above sleep should correct
+#	sleep 90   # wait for dhcp/ntp on reboot to catch up			v1.10 disabled
+#	run_date="$(date +%c)"   # date could be May 4/5 Dec 31 etc in $run_date on reboot wan-event connect, above sleep should correct			#v1.10 disabled
 	sed -i "1,/wancall_run_count=.*/{s/wancall_run_count=.*/wancall_run_count=$new_wancall_count/;}" "$script_name_full"
 	sed -i "1,/last_wancall_run=.*/{s/last_wancall_run=.*/last_wancall_run='$run_date'/;}" "$script_name_full"
 fi
