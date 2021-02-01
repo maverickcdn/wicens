@@ -34,8 +34,8 @@ renewal when your IP changes may not trigger a 'wan-event connected' event.
 All cron/wan-event entries are automatically generated upon completion of
 your Email user login information and is double checked with every run.
 
-'wan-event connected' execution has a 90 sec delay from trigger to WAN IP
-check as we wait for DHCP/NTP to catch up on reboots.
+NTP sync must occur to update router date/time for script to function
+properly
 
 ### Technical ###
 
