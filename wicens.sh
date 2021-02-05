@@ -1691,7 +1691,7 @@ F_auto_run_check() {
 } ### auto_run_check
 
 F_google_ping() {
-	F_test_sites() { echo "google.com" ;echo "github.com" ;echo "208\.67\.222\.222" ;}
+	F_test_sites() { echo "google.com" ;echo "github.com" ;echo "yahoo.com" ;}
 
 	good_ping=0
 	for tested_site in $(F_test_sites)
