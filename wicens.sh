@@ -161,8 +161,7 @@ F_opt_about() {
 	printf "All cron/wan-event entries are automatically generated upon completion of  \n"
 	printf "your Email user login information and is double checked with every run.    \n\n"
 
-	printf "'wan-event connected' execution has a 90 sec delay from trigger to WAN IP   \n"
-	printf "check as we wait for DHCP/NTP to catch up on reboots. \n\n"
+	printf "NTP sync must occur to update router date/time for proper script function  \n"
 
 	printf "### Technical ###\n\n"
 
@@ -2256,7 +2255,7 @@ fi
 
 if [ "$1" = 'wancall' ]; then
 	new_wancall_count="$((wancall_run_count + 1))"
-	F_log_this "Started by 'wan-event connected' trigger, sleeping 90s, wait for WAN DHCP/NTP to catch up"
+	F_log_this "Started by 'wan-event connected' trigger"   #, sleeping 90s, wait for WAN DHCP/NTP to catch up"			v1.10 rewrite
 #	sleep 90   # wait for dhcp/ntp on reboot to catch up			v1.10 disabled
 #	run_date="$(date +%c)"   # date could be May 4/5 Dec 31 etc in $run_date on reboot wan-event connect, above sleep should correct			#v1.10 disabled
 	sed -i "1,/wancall_run_count=.*/{s/wancall_run_count=.*/wancall_run_count=$new_wancall_count/;}" "$script_name_full"
