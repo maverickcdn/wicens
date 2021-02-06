@@ -15,7 +15,7 @@
 # github.com/maverickcdn/wicens
 
 # START ---------------------------------------------------------------------------------------------------------------
-script_version='1.10'
+script_version='1.11'
 
 #################################################
 saved_wan_ip=''
@@ -1558,7 +1558,7 @@ F_send_mail() {
 	
 	# user_custom_script 'wait' call
 	if [ -n "$user_custom_script" ] && [ "$user_custom_script_w" = 'w' ] && [ "$passed_options" != 'test' ] ; then
-		(sh "$user_custom_script_decoded") & custom_script_pid=$!
+		(nohup sh "$user_custom_script_decoded" >/dev/null 2>&1) & custom_script_pid=$!			# v1.11
 		F_log_this "Executed custom script $user_custom_script_decoded and put in background with PID $custom_script_pid"
 		F_terminal_check_ok "Started user custom script and put in background"
 	fi
@@ -2285,7 +2285,7 @@ else
 	ip_match='no'
 	# user_custom_script 'immediate' call
 	if [ -n "$user_custom_script" ] && [ "$user_custom_script_w" = 'i' ] && [ "$passed_options" != 'test' ] ; then
-		(sh "$user_custom_script_decoded") & custom_script_pid=$!
+		(nohup sh "$user_custom_script_decoded" >/dev/null 2>&1) & custom_script_pid=$!			# v1.11
 		F_log_this "Executed custom script $user_custom_script_decoded and put in background with PID $custom_script_pid"
 		F_terminal_check_ok "Started user custom script and put in background"
 	fi
