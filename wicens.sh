@@ -1651,7 +1651,7 @@ F_auto_run_check() {
 			printf "\r%b /jffs/scripts/wan-event %bexists%b\n" "$tERASE$tCHECKOK" "$tGRN" "$tCLR"
 			F_terminal_check "Checking for wicens entry"
 			if grep -q "/jffs/scripts/$script_name wancall" "/jffs/scripts/wan-event" ; then
-				printf "\r%b %s %bexists%b\n" "$tERASE$tCHECKOK" "$(grep '/jffs/scripts/$script_name wancall' "/jffs/scripts/wan-event" | cut -c -62)" "$tGRN" "$tCLR"
+				printf "\r%b %s %bexists%b\n" "$tERASE$tCHECKOK" "$(grep "/jffs/scripts/$script_name wancall" "/jffs/scripts/wan-event" | cut -c -62)" "$tGRN" "$tCLR"
 
 			else
 				F_terminal_check_fail "No wicens reference found in wan-event script"
