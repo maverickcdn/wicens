@@ -13,7 +13,8 @@
 # shellcheck disable=SC3045,SC2034,SC3003   # disable notices about posix compliant -s   reads unused vars   backspace in pswd check
 # written by maverickcdn January 2021
 # github.com/maverickcdn/wicens
-# modified firmware checks to allow LTS Fork by john9527 March 2021
+# modified firmware checks to allow LTS Fork by john9527 March 2021 (special thanks to john9527 @ snbforums for adding compatibility for getrealip.sh)
+# SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 
 # START ---------------------------------------------------------------------------------------------------------------
 script_version='1.12'
