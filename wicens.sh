@@ -1784,7 +1784,7 @@ F_current_wan_ip_get() {
 
 F_update_script() {
 	[ "$ip_match" = 'no' ] && sed -i "1,/last_ip_change=.*/{s/last_ip_change=.*/last_ip_change='$run_date'/;}" "$script_name_full" # only write on change
-	[ "$passed_options" = 'setup' ] && F_terminal_check_ok "IP successfully retrieved"
+	[ "$building_settings" = 'yes' ] && F_terminal_check_ok "IP successfully retrieved"
 	printf "%b Updating wicens script with new WAN IP %b%s%b" "$tCHECK" "$tYEL" "$current_wan_ip" "$tCLR"
 
 	if sed -i "1,/saved_wan_ip=.*/{s/saved_wan_ip=.*/saved_wan_ip='$current_wan_ip'/;}" "$script_name_full"; then
@@ -1951,7 +1951,7 @@ F_terminal_header() {
 
 F_start_message() {
 	F_terminal_header
-	[ "$passed_options" = 'setup' ] && F_terminal_show "Welcome to the WICENS setup" && F_terminal_padding
+	[ "$building_settings" = 'yes' ] && F_terminal_show "Welcome to the WICENS setup" && F_terminal_padding
 	printf "%b Current saved WAN IP             :  %b%s%b\n" "$tTERMHASH" "$tGRN" "$saved_wan_ip" "$tCLR"
 	F_terminal_header_print "Current Email send to address    : " "$user_send_to_addr"
 	[ -n "$user_send_to_cc" ] && F_terminal_header_print "Current Email send to CC address : " "$user_send_to_cc"
