@@ -671,7 +671,7 @@ F_terminal_entry_header() { F_start_message | head -n "$1" ; F_terminal_separato
 
 # all user entry functions called by until loops and return 1 for failed input and restart or return 0 with completed Y in while loop
 F_send_to_addr() {
-	F_terminal_entry_header 13
+	F_terminal_entry_header 15
 	F_terminal_show "Enter the Email address you wish to send notification Emails" ;F_terminal_show "to when your WAN IP changes"
 	F_terminal_show "eg.  myrecipient@myemail.com"
 	[ -n "$user_send_to_addr" ] && printf "%b Currently set to : %b%s%b \n" "$tTERMHASH" "$tGRN" "$user_send_to_addr" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
@@ -696,7 +696,7 @@ F_send_to_addr() {
 
 F_send_to_cc() {
 	if [ -n "$user_send_to_cc" ]; then
-		F_terminal_entry_header 14
+		F_terminal_entry_header 16
 		printf "%b Second Email recipient already set to : %s \n\n" "$tTERMHASH" "$user_send_to_cc" ;F_terminal_padding
 		while true; do
 			F_terminal_check "(Y)keep (N)enter new (R)remove current & skip to server entry"   # for edits can remove 2nd email if wanted.
@@ -712,7 +712,7 @@ F_send_to_cc() {
 
 	else
 		user_send_to_cc="currently none"  # set var for setup terminal menus
-		F_terminal_entry_header 14
+		F_terminal_entry_header 16
 		F_terminal_show "Enter a 2nd Email address you wish to send notification Emails"
 		F_terminal_show "to when your WAN IP changes"
 		F_terminal_show "eg.  my2ndrecipient@myemail.com"
@@ -738,7 +738,7 @@ F_send_to_cc() {
 } ### send_to_cc
 
 F_smtp_server() {
-	F_terminal_entry_header 15
+	F_terminal_entry_header 17
 	F_terminal_show "Enter the SMTP server address and port # like as shown for your"
 	F_terminal_show "Email provider - eg.  smtp.myemailprovider.com:25"
 	[ -n "$user_smtp_server" ] && printf "%b Currently set to : %b%s%b\n" "$tTERMHASH" "$tGRN" "$user_smtp_server" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
@@ -762,7 +762,7 @@ F_smtp_server() {
 } ### smtp_server
 
 F_send_type() {
-	F_terminal_entry_header 16
+	F_terminal_entry_header 18
 	F_terminal_show "SMTP Email server send configuration type                Selection"
 	F_terminal_padding
 	F_terminal_show "WITH password and StartTLS - eg.GMail(587)/Hotmail/Outlook - 1"
@@ -814,7 +814,7 @@ F_send_type() {
 } ### send_type
 
 F_from_email_addr() {
-	F_terminal_entry_header 17
+	F_terminal_entry_header 19
 	F_terminal_show "Enter the Email send from (login) address for your Email provider"
 	F_terminal_show "eg.  myemail@myemailprovider.com"
 	[ -n "$user_from_addr" ] && printf "%b Currently set to : %b%s%b\n" "$tTERMHASH" "$tGRN" "$user_from_addr" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
@@ -838,7 +838,7 @@ F_from_email_addr() {
 } ### from_email_addr
 
 F_from_name() {
-	F_terminal_entry_header 18
+	F_terminal_entry_header 20
 	F_terminal_show "Enter the 'message from name' for the notification Email"
 	[ -n "$user_from_name" ] && printf "%b Currently set to : %b%s%b\n" "$tTERMHASH" "$tGRN" "$user_from_name" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
 	F_terminal_padding ;F_terminal_entry "Email from name : "
@@ -890,7 +890,7 @@ F_smtp_pswd() {
 		IFS=$old_ifs
 	} # pswd_entry
 
-	F_terminal_entry_header 19
+	F_terminal_entry_header 21
 	F_terminal_show "Enter the password for your Email"
 	[ -n "$user_pswd" ] && F_terminal_show "Saved password exists, leave blank to use saved"
 	F_terminal_padding ;F_terminal_entry "Password  : "
@@ -933,17 +933,17 @@ F_smtp_pswd() {
 
 F_term_show_msgcount() {
 	if [ "$user_message_count" = '1' ] || [ -z "$user_message_count" ]; then
-		[ "$1" = 'message' ] && F_terminal_entry_header 19
-		[ "$1" = 'cron' ] && F_terminal_entry_header 20
-	elif [ "$user_message_count" = "2" ]; then
-		[ "$1" = 'message' ] && F_terminal_entry_header 20
-		[ "$1" = 'cron' ] && F_terminal_entry_header 21
-	elif [ "$user_message_count" = "3" ]; then
 		[ "$1" = 'message' ] && F_terminal_entry_header 21
 		[ "$1" = 'cron' ] && F_terminal_entry_header 22
-	elif [ "$user_message_count" = "4" ]; then
+	elif [ "$user_message_count" = '2' ]; then
 		[ "$1" = 'message' ] && F_terminal_entry_header 22
 		[ "$1" = 'cron' ] && F_terminal_entry_header 23
+	elif [ "$user_message_count" = '3' ]; then
+		[ "$1" = 'message' ] && F_terminal_entry_header 23
+		[ "$1" = 'cron' ] && F_terminal_entry_header 24
+	elif [ "$user_message_count" = '4' ]; then
+		[ "$1" = 'message' ] && F_terminal_entry_header 24
+		[ "$1" = 'cron' ] && F_terminal_entry_header 25
 	fi
 }
 
