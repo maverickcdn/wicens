@@ -17,7 +17,7 @@
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 
 # START ---------------------------------------------------------------------------------------------------------------
-script_version='1.12'
+script_version='1.13'
 
 #################################################
 saved_wan_ip=''
@@ -1591,7 +1591,7 @@ F_auto_run_check() {
 			if [ "$user_cron_interval" = 'minute' ]; then
 				cru a wicens "*/$user_cron_period * * * * $script_name_full cron"
 			elif [ "$user_cron_interval" = 'hour' ]; then
-				cru a wicens "* */$user_cron_period * * * $script_name_full cron"
+				cru a wicens "59 */$user_cron_period * * * $script_name_full cron"
 			fi
 
 			printf "\r%b Added entry for wicens in cron(cru) with %s %s interval  \n" "$tERASE$tCHECKOK" "$user_cron_period" "$user_cron_interval"
@@ -1623,7 +1623,7 @@ F_auto_run_check() {
 				if [ "$user_cron_interval" = 'minute' ]; then
 					echo "cru a wicens \"*/$user_cron_period * * * * /jffs/scripts/$script_name cron\"   # added by wicens" >> /jffs/scripts/services-start
 				elif [ "$user_cron_interval" = "hour" ]; then
-					echo "cru a wicens \"* */$user_cron_period * * * /jffs/scripts/$script_name cron\"   # added by wicens" >> /jffs/scripts/services-start
+					echo "cru a wicens \"59 */$user_cron_period * * * /jffs/scripts/$script_name cron\"   # added by wicens" >> /jffs/scripts/services-start
 				fi
 
 				F_log_and_terminal_ok "Added a cron(cru) entry for wicens to /jffs/scripts/services-start"
@@ -1683,7 +1683,7 @@ F_auto_run_check() {
 
 	# used in cron and services-start checks
 	if [ "$user_cron_interval" = 'hour' ]; then
-		cron_current_setting="\* \*/$user_cron_period \* \* \* $script_name_full cron"
+		cron_current_setting="59 \*/$user_cron_period \* \* \* $script_name_full cron"
 	elif [ "$user_cron_interval" = 'minute' ]; then
 		cron_current_setting="\*/$user_cron_period \* \* \* \* $script_name_full cron"
 	fi
