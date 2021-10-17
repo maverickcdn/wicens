@@ -2,10 +2,10 @@
         WICENS - WAN IP Change Email Notification Script.
 
 This script when configured will send an Email (1-4) at variable intervals
-X(second/minute/hour/day) to your Email notifying you when your WAN IP
+X(second/minute/hour/day) to your Email(s) notifying you when your WAN IP
 has changed.
 
-Supports GMail, Hotmail, Outlook
+Supports GMail, Hotmail, Outlook, ISP based Email
 
 SMTP Email send formats available:
 sendmail - StartTLS v1.1 higher (eg. GMail port 587)
@@ -19,23 +19,21 @@ GMail account. If you use 2factor authentication you must setup an assigned
 password in GMail for this script to use.
 
 IMPORTANT - Your Email address(es) are stored as plain text within this
-script.  Your Email password is obfuscated and saved to the script.
+script.  Your Email password is encrypted and saved to router storage.
 If you dont practice good security habits around your router ssh access,
 this script might not be for you.
 
-Uses firmware built in getrealip.sh to retrieve your WAN IP using Google
-STUN server. This will show your WAN IP regardless if your router is behind
-NAT (unbridged modem) or not.
+Script compares IP in NVRAM to saved IP with wancall connected events and
+cron, cron is also a watchdog and monitors for failed Email attempts.
+Should NVRAM IP be unavailable for whatever reason script will use
+firmware built in getrealip.sh to retrieve your WAN IP using Google STUN
+server.
 
-Executed by settable minute || hour cron run (default 31min) for checking
-your current WAN IP. Also executed by 'wan-event connected' trigger. A DHCP
-renewal when your IP changes may not trigger a 'wan-event connected' event.
+Script will display a notification if an update is available.
 
-All cron/wan-event entries are automatically generated upon completion of
-your Email user login information and is double checked with every run.
+All cron/wan-event entries are automatically created with this script
 
-NTP sync must occur to update router date/time for script to function
-properly
+NTP sync must occur to update router date/time for proper script function
 
 ### Technical ###
 
@@ -63,7 +61,7 @@ change detection, or wait until all Email messages have been sent and
 script has successfully updated. Script will be put in background as to not
 block this script
 
-Every Sunday the script will log the number of calls from cron/wan-event.
+Every Sunday the script will log the number of calls from wan-event.
 
 To download, copy/paste in an ssh terminal
 
