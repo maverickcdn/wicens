@@ -1484,7 +1484,7 @@ F_serv_start() {
 F_wan_event() {
 	if [ "$1" = 'check' ] ; then
 		F_terminal_check "Checking for wicens entry"
-		if grep -q "sh $script_name_full wancall" '/jffs/scripts/wan-event' ; then
+		if grep -q "sh $script_name_full wancall" '/jffs/scripts/wan-event' 2>/dev/null ; then
 			printf "\r%b %s... %bexists%b\n" "$tERASE$tCHECKOK" "$(grep "$script_name_full wancall" '/jffs/scripts/wan-event' | cut -c -59)" "$tGRN" "$tCLR"
 			return 0
 		else
