@@ -2164,7 +2164,7 @@ F_main_menu() {
 		d|D) F_opt_disable ;;
 		e|E) F_clean_exit ;;
 		f|F) F_web_update_check force ;;
-		#i|I) F_opt_uninstall ;;
+		i|I) F_opt_uninstall ;;
 		m|M) F_opt_manual ;;
 		p|P) until F_opt_pswd ; do : ; done ; F_menu_exit ;;
 		r|R) F_opt_reset ;;
