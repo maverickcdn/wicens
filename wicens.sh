@@ -1952,6 +1952,7 @@ F_web_update_check() {
 		. "$update_src"   # resource config to update vars in current session
 	else
 		printf '\r%b Update check recently, %s secs since last check \n' "$tERASE$tTERMHASH" "$update_diff"   # debug msg
+		return 0
 	fi
 	[ "$1" = 'force' ] && F_menu_exit || F_terminal_padding && F_menu_countdown
 } ### web_update_check
