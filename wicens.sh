@@ -1947,13 +1947,16 @@ F_web_update_check() {
 		else
 			sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='$git_version'/;}" "$update_src"
 			printf '\r%b Success%b checking for update... Ver: %b%s%b available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR" "$tGRN" "$git_version" "$tCLR"
+			F_terminal_padding
+			curl --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" -o "/tmp/wicenschangelog.txt" && \
+			cat "/tmp/wicenschangelog.txt" | sed -n "/$git_version"'/,/##/p' | head -n -1 | sed 's/## //' && rm -f /tmp/wicenschangelog.txt    # jackyaz connmon
 		fi
 		. "$update_src"   # resource config to update vars in current session
 	else
 		printf '\r%b Update check recently, %s secs since last check \n' "$tERASE$tTERMHASH" "$update_diff"   # debug msg
 		return 0
 	fi
-	[ "$1" = 'force' ] && F_menu_exit || F_terminal_padding && F_menu_countdown
+	[ "$1" = 'force' ] && F_menu_exit || F_terminal_padding && menu_time=10 && F_menu_countdown
 } ### web_update_check
 
 F_clean_exit() {
