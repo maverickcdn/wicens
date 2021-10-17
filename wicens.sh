@@ -1512,7 +1512,6 @@ F_wan_event() {
 				F_clean_exit
 			fi
 		else
-			F_terminal_check_fail "/jffs/scripts/wan-event does not exist"
 			F_log "/jffs/scripts/wan-event does not exist, attempting to create"
 			F_terminal_check "Creating /jffs/scripts/wan-event"
 			touch '/jffs/scripts/wan-event'
