@@ -33,7 +33,7 @@ update_check_period=900   # only re-check for update after 15 mins
 [ "$1" = 'debug' ] && shift && set -x
 
 # script misc #####################################################################################
-if grep -q $'\x0D' "$script_name_full" ; then dos2unix "$script_name_full" && exec sh "$script_name_full" ; fi   # CRLF
+if grep -q $'\x0D' "$script_name_full" 2>/dev/null ; then dos2unix "$script_name_full" && exec sh "$script_name_full" ; fi   # CRLF
 [ ! -x "$script_name_full" ] && chmod a+rx "$script_name_full"   # incase script was installed but not made exec for cron
 F_ctrlc_clean() { printf "\n\n%b Script interrupted...\n" "$tTERMHASH" ; F_clean_exit ;}   # CTRL+C catch with trap
 trap F_ctrlc_clean INT   # trap ctrl+c exit clean
@@ -1442,7 +1442,7 @@ F_serv_start() {
 		fi
 	elif [ "$1" = 'add' ] ; then 
 		if [ -f '/jffs/scripts/services-start' ]; then
-			if grep -q $'\x0D' '/jffs/scripts/services-start' ; then dos2unix /jffs/scripts/services-start ; fi 
+			if grep -q $'\x0D' '/jffs/scripts/services-start' 2>/dev/null ; then dos2unix /jffs/scripts/services-start ; fi 
 			[ ! -x '/jffs/scripts/services-start' ] && chmod a+rx "/jffs/scripts/services-start"
 			# cleanup if somehow different entry exists
 			#grep -q "cru a wicens" '/jffs/scripts/services-start' && sed -i "/cru a wicens/d' '/jffs/scripts/services-start'
@@ -1497,7 +1497,7 @@ F_wan_event() {
 		fi
 	elif [ "$1" = 'add' ] ; then
 		if [ -f '/jffs/scripts/wan-event' ]; then
-			if grep -q $'\x0D' '/jffs/scripts/wan-event' ; then dos2unix /jffs/scripts/wan-event ; fi
+			if grep -q $'\x0D' '/jffs/scripts/wan-event' 2>/dev/null ; then dos2unix /jffs/scripts/wan-event ; fi
 			[ ! -x '/jffs/scripts/wan-event' ] && chmod a+rx '/jffs/scripts/wan-event'
 			F_terminal_check "Adding wicens to wan-event script on connected event"
 			if ! grep -q '#!/bin/sh' '/jffs/scripts/wan-event' ; then
