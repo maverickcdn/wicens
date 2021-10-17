@@ -18,10 +18,10 @@
 
 # START ###########################################################################################
 script_version='2.00'
-script_ver_date='October 17 2021'
+script_ver_date='October 16 2021'
 script_name="$(basename "$0")"
-script_name_full="/tmp/mnt/MavNET16GB/router/wicens/$script_name"  # "/jffs/scripts/$(basename $0)"
-script_dir='/tmp/mnt/MavNET16GB/router/wicens'
+script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
+script_dir='/jffs/addons/wicens'
 script_git_src='https://raw.githubusercontent.com/maverickcdn/wicens/master/wicens.sh'
 mail_file='/tmp/wicens_email.txt'   # temp file for mail text
 mail_log="${script_dir}/wicens_email.log"   # log file for sendmail/curl
