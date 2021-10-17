@@ -1111,7 +1111,7 @@ last_wancall_log_count=0
 opt_color='yes'
 log_cron_msg=0
 ###########################################################
-Created : $(date +%c)"
+# Created : $(date +%c)"
 } ### default
 
 F_default_update() {
@@ -1120,7 +1120,7 @@ F_default_update() {
 update_auto_check_epoch=''
 update_auto_check_avail='none'
 ###########################################################
-Created : $(date +%c)"
+# Created : $(date +%c)"
 }
 
 F_build_settings() {
