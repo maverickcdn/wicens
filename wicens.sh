@@ -1950,13 +1950,14 @@ F_web_update_check() {
 			F_terminal_padding
 			curl --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" -o "/tmp/wicenschangelog.txt" && \
 			cat "/tmp/wicenschangelog.txt" | sed -n "/$git_version"'/,/##/p' | head -n -1 | sed 's/## //' && rm -f /tmp/wicenschangelog.txt    # jackyaz connmon
+			menu_time=10
 		fi
 		. "$update_src"   # resource config to update vars in current session
 	else
 		printf '\r%b Update check recently, %s secs since last check \n' "$tERASE$tTERMHASH" "$update_diff"   # debug msg
 		return 0
 	fi
-	[ "$1" = 'force' ] && F_menu_exit || F_terminal_padding && menu_time=10 && F_menu_countdown
+	[ "$1" = 'force' ] && F_menu_exit || F_terminal_padding && F_menu_countdown
 } ### web_update_check
 
 F_clean_exit() {
