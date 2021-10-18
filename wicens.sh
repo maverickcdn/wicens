@@ -17,8 +17,8 @@
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 
 # START ###########################################################################################
-script_version='2.00'
-script_ver_date='October 16 2021'
+script_version='2.10'
+script_ver_date='October 17 2021'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
@@ -412,6 +412,18 @@ F_opt_error() {
 	fi
 } # error
 
+F_opt_notifications() {
+	if [ "$user_update_notification" = 1 ] ; then
+		F_log_terminal_ok "Enabling Email notifications for script updates"
+		sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=0/;}" "$update_src"
+		F_menu_exit
+	elif [ "$user_update_notification" = 0 ] ; then
+		F_log_terminal_ok "Disabling Email notifications for script updates"
+		sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=1/;}" "$update_src"
+		F_menu_exit
+	fi
+} # notifications
+
 F_opt_manual() {
 	F_ready_check
 	F_status
@@ -669,7 +681,7 @@ F_opt_uninstall() {
 		F_terminal_check_ok "Done. Uninstalled" ; F_terminal_padding ; exit 0
 	} # uninstall_do
 
-	F_terminal_header ; F_terminal_warning ; F_terminal_show "This will remove the wicens script ENTIRELY from your system" 
+	F_terminal_header ; F_terminal_warning ; F_terminal_show "This will remove the wicens script ENTIRELY from your system"
 	F_terminal_show "And any backup configs" ; F_terminal_padding
 	while true; do
 		F_terminal_check "Are you sure you wish to uninstall? Y or N"
@@ -1442,7 +1454,7 @@ F_serv_start() {
 		fi
 	elif [ "$1" = 'add' ] ; then 
 		if [ -f '/jffs/scripts/services-start' ]; then
-			if grep -q $'\x0D' '/jffs/scripts/services-start' 2>/dev/null ; then dos2unix /jffs/scripts/services-start ; fi 
+			if grep -q $'\x0D' '/jffs/scripts/services-start' 2>/dev/null ; then dos2unix /jffs/scripts/services-start ; fi
 			[ ! -x '/jffs/scripts/services-start' ] && chmod a+rx "/jffs/scripts/services-start"
 			# cleanup if somehow different entry exists
 			#grep -q "cru a wicens" '/jffs/scripts/services-start' && sed -i "/cru a wicens/d' '/jffs/scripts/services-start'
@@ -1477,7 +1489,7 @@ F_serv_start() {
 				F_log "Critical error, failed to add 'shebang' to services-start"
 				F_clean_exit
 			fi
-		fi	
+		fi
 	fi
 } # serv_start_check
 
@@ -1821,7 +1833,7 @@ F_settings_test() {
 } ### settings_test
 
 F_google_ping() {
-	F_test_sites() { 
+	F_test_sites() {
 		echo "google.com" ;echo "bing.com" ;echo "yahoo.com" ;echo "github.com" ;echo "asus.com"
 	}
 	good_ping=0
@@ -1879,25 +1891,29 @@ F_local_script_update() {
 			*) F_clean_exit reload ;;
 		esac
 	fi
-	
+
 	F_terminal_show "Starting script update to ver: $update_auto_check_avail" ; F_terminal_padding
 	F_terminal_check "Dowloading...."
 	sleep 1
 	if /usr/sbin/curl -fsL --retry 3 --connect-timeout 15 "$script_git_src" -o /jffs/scripts/wicens.sh ; then
 		[ ! -x "$script_name_full" ] && chmod a+rx "$script_name_full"
 		F_terminal_check_ok "Success, new script ver $update_auto_check_avail installed" ; F_terminal_padding
-		sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='none'/;}" "$update_src"
+		rm -f "$update_src" && F_default_update > "$update_src"   # incase update in update_src replace file
+		# current user_update_notification should be loaded if 0 overwrite on new file
+		[ "$user_update_notification" = '0' ] && sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=0/;}" "$update_src"
 		sed -i "1,/update_auto_check_epoch=.*/{s/update_auto_check_epoch=.*/update_auto_check_epoch='$(/bin/date +%s)'/;}" "$update_src"
 	else
 		F_terminal_check_fail "Error, failed downloading/saving new script version" ; F_terminal_padding
 	fi
-	F_terminal_check "Any key to restart script"
+	F_terminal_padding
+	curl --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/$git_version"'/,/##/p' | head -n -1 | sed 's/## //'
+	F_terminal_padding ; F_terminal_check "Any key to restart script"
 	read -rsn1 restartupdatewait
 	F_clean_exit reload
-}
+} ### local_script_update
 
 F_web_update_check() {
-	if [ "$update_diff" -ge "$update_check_period" ] || [ "$1" = 'force' ] ; then   # update period is longer than specified do check otherwise ignore function
+	if [ "$update_diff" -ge "$update_check_period" ] || [ "$1" = 'force' ] || [ "$1" = 'cron' ] ; then   # update period is longer than specified do check otherwise ignore function
 		F_terminal_header ; F_terminal_padding ; printf "%bScript update check%b \n" "$tTERMHASH $tYEL" "$tCLR" ; F_terminal_padding
 		# download wait timer
 		wait_update_time=15
@@ -1948,8 +1964,7 @@ F_web_update_check() {
 			sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='$git_version'/;}" "$update_src"
 			printf '\r%b Success%b checking for update... Ver: %b%s%b available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR" "$tGRN" "$git_version" "$tCLR"
 			F_terminal_padding
-			curl --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" -o "/tmp/wicenschangelog.txt" && \
-			cat "/tmp/wicenschangelog.txt" | sed -n "/$git_version"'/,/##/p' | head -n -1 | sed 's/## //' && rm -f /tmp/wicenschangelog.txt    # jackyaz connmon
+			curl --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/$git_version"'/,/##/p' | head -n -1 | sed 's/## //'    # jackyaz connmon
 			menu_time=10
 		fi
 		. "$update_src"   # resource config to update vars in current session
@@ -1957,6 +1972,7 @@ F_web_update_check() {
 		printf '\r%b Update check recently, %s secs since last check \n' "$tERASE$tTERMHASH" "$update_diff"   # debug msg
 		return 0
 	fi
+	[ "$1" = 'cron' ] && return 0
 	[ "$1" = 'force' ] && F_menu_exit || F_terminal_padding && F_menu_countdown
 } ### web_update_check
 
@@ -2030,6 +2046,36 @@ F_do_compare() {
 		return 1
 	fi
 } ### do_compare   does wan ip compare and returns
+
+F_update_mail_notify() {
+	{
+		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
+		echo "Subject: Update avail for wicens script"
+		echo "From: $user_from_name <$user_from_addr>"
+		echo "Date: $(/bin/date +%c)"
+		echo ""
+		echo "NOTICE"
+		echo ""
+		echo "Update is available for wicens script on your $device_model"
+		echo ""
+		[ "$update_auto_check_avail" = 'hotfix' ] && echo "Hotfix avail for current version"
+		[ "$update_auto_check_avail" != 'hotfix' ] && echo "Version $git_version is available"
+		echo ""
+		echo "Run wicens script on your router and select option u to update"
+		echo ""
+		echo "----------------------------------------------------------------------------"
+		echo ""
+	} >> "$mail_file"
+	internet_check_count=0
+	until F_internet_check ; do : ; done   # monitors/runs F_google_ping (attempts 5mins/30s interval)
+	rm -f "$mail_log" 2> /dev/null
+	if ! F_send_message; then
+		F_log "Error, failed to send update notification Email"
+	fi
+	user_pswd=''
+	F_log "Update available for wicens script, run manually to update"
+	rm -f "$mail_file"
+} ### update_mail_notify
 
 # STATUS/TERMINAL #################################################################################
 
@@ -2131,6 +2177,8 @@ F_main_menu() {
 	printf "%b Custom Email msg text--------: 2" "$tTERMHASH" ;[ -n "$user_custom_text" ] && printf "%b     Exists%b\n" "$tGRN" "$tCLR" || printf "%b     Unused%b\n" "$tPUR" "$tCLR"
 	printf "%b Custom Email msg subject-----: 3" "$tTERMHASH" ;[ -n "$user_custom_subject" ] && printf "%b     Exists%b\n" "$tGRN" "$tCLR" || printf "%b     Unused%b\n" "$tPUR" "$tCLR"
 	printf "%b Custom script execution------: s" "$tTERMHASH" ;[ -n "$user_custom_script" ] && printf "%b     Exists%b   -   Action:%b %s%b \n" "$tGRN" "$tCLR" "$tGRN" "$user_script_call_time" "$tCLR" || printf "%b     Unused%b\n" "$tPUR" "$tCLR"
+	printf "%b Email update notifcations----: n" "$tTERMHASH"
+	[ "$user_update_notification" = 0 ] && printf "%b     Enabled%b\n" "$tGRN" "$tCLR" || printf "%b     Disabled%b\n" "$tRED" "$tCLR"
 	F_terminal_separator ;F_terminal_show "Show sample Email------------: 4"
 	F_terminal_show "Send a test Email------------: 5"
 	F_terminal_show "Show Email send log----------: 6"
@@ -2170,6 +2218,7 @@ F_main_menu() {
 		f|F) F_web_update_check force ;;
 		i|I) F_opt_uninstall ;;
 		m|M) F_opt_manual ;;
+		n|N) F_opt_notifications ;;
 		p|P) until F_opt_pswd ; do : ; done ; F_menu_exit ;;
 		r|R) F_opt_reset ;;
 		u|U) if [ "$update_auto_check_avail" != 'none' ] ; then   # option only avail if we found an update
@@ -2270,7 +2319,7 @@ if [ -f "$script_lock" ] ; then
 			printf "%b from %s on %s\n" "$tTERMHASH" "$process_calledby" "$process_created"
 			F_terminal_show "Removed stale wicenssendmail.lock file, any key to continue"
 			F_log "NOTICE - Removed stale wicenssendmail.lock file started by $process_calledby on $process_created"
-			[ "$passed_options" = 'manual' ] && read -rsn1 "staleremove"
+			[ "$passed_options" = 'manual' ] && read -rsn1 staleremove
 		else
 			if [ ! -d "/proc/$locked_process" ] ; then # process that created doesnt exist
 				F_log_show "CRITICAL ERROR - wicens.lock and wicenssendmail.lock exist"
@@ -2280,7 +2329,7 @@ if [ -f "$script_lock" ] ; then
 				rm -f "$script_lock"
 				rm -f "$script_mail_lock"
 				F_log_show "CRITICAL ERROR - Removed dead wicens.lock and wicenssendmail.lock files"
-				[ "$passed_options" = 'manual' ] && F_terminal_check "Any key to continue" && read -rsn1 "staleremove"
+				[ "$passed_options" = 'manual' ] && F_terminal_check "Any key to continue" && read -rsn1 staleremove
 			else
 				F_terminal_show "wicens.lock and wicenssendmail.lock exist"
 				F_terminal_show "Lock files not over age limit"
@@ -2301,7 +2350,7 @@ if [ -f "$script_lock" ] ; then
 			F_log "NOTICE - Process doesn't exist - Removed stale wicens.lock file, $process_calledby and started $process_created"
 			rm -f "$script_lock"
 			F_terminal_padding ;F_terminal_show "Any key to start script"
-			[ "$passed_options" = 'manual' ] && read -rsn1 "lock_notify_wait"
+			[ "$passed_options" = 'manual' ] && read -rsn1 lock_notify_wait
 	else
 		if [ "$lock1_diff_time" -gt 330 ] ; then   # based on if internet is down google attempts is 5 mins
 			F_log_show "Lock file exists for running process older than 5 mins but not sending Email"
@@ -2311,7 +2360,7 @@ if [ -f "$script_lock" ] ; then
 			rm -f "$script_lock"
 			F_log_show "Done, killed stale process, removed lock file"
 			F_terminal_padding ;F_terminal_show "Any key to start script"
-			[ "$passed_options" = 'manual' ] && read -rsn1 "lock_notify_wait"
+			[ "$passed_options" = 'manual' ] && read -rsn1 lock_notify_wait
 		else
 			F_terminal_show "wicens.lock file exists, but is not yet 5 mins old"
 			F_terminal_show "wait till lock file ages, or remove manually with option 'remove'"
@@ -2358,6 +2407,17 @@ elif [ "$passed_options" = 'cron' ]; then
 		sed -i "1,/log_cron_msg=.*/{s/log_cron_msg=.*/log_cron_msg=0/;}" "$config_src"  # monday reset to log again sunday
 	fi
 	# end of Sunday logging
+	# update check
+	update_cron_diff=$((run_epoch - update_cron_epoch))
+	if [ "$update_cron_diff" -gt 14400 ] && [ "$user_update_notification" = '0' ] ; then   # check for webupdate every 4hrs
+		sed -i "1,/update_cron_epoch=.*/{s/update_cron_epoch=.*/update_cron_epoch='$(/bin/date +%s)'/;}" "$update_src"
+		F_web_update_check cron
+	fi
+	# update notification
+	if [ "$update_auto_check_avail" != 'none' ] && [ "$update_notification" = '0' ] && [ "$user_update_notification" = '0' ] ; then   # no notification yet sent for update
+		sed -i "1,/update_notification=.*/{s/update_notification=.*/update_notification=1/;}" "$update_src"
+		F_update_mail_notify
+	fi
 	if ! F_do_compare ; then
 		F_send_mail
 	fi
