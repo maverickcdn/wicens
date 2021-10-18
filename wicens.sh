@@ -1131,6 +1131,9 @@ F_default_update() {
 # wicens update conf file
 update_auto_check_epoch=''
 update_auto_check_avail='none'
+update_notification=0
+update_cron_epoch=''
+user_update_notification=1
 ###########################################################
 # Created : $(date +%c)"
 }
