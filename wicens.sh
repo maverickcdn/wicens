@@ -1909,6 +1909,8 @@ F_local_script_update() {
 		F_terminal_check_fail "Error, failed downloading/saving new script version" ; F_terminal_padding
 	fi
 	F_terminal_padding
+	git_get="/usr/sbin/curl -fsL --retry 3 --connect-timeout 15 $script_git_src"
+	git_version="$($git_get | grep 'script_version' | head -n1 | cut -d"=" -f2 | sed "s/'//g")"
 	curl --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/$git_version"'/,/##/p' | head -n -1 | sed 's/## //'
 	F_terminal_padding ; F_terminal_check "Any key to restart script"
 	read -rsn1 restartupdatewait
