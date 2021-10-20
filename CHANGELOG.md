@@ -1,5 +1,8 @@
 # wicens change log
 -----------------
+## 2.21
+Oct 20 2021
+* FIXED: update_src file properly replaced on update if change to file structure
 ## 2.20
 Oct 19 2021
 * CHANGED: moved/renamed some vars
