@@ -18,8 +18,8 @@
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 
 # START ###########################################################################################
-script_version='2.20'
-script_ver_date='October 19 2021'
+script_version='2.21'
+script_ver_date='October 20 2021'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
