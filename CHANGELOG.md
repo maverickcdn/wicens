@@ -1,5 +1,13 @@
 # wicens change log
 -----------------
+## 2.20
+Oct 19 2021
+* CHANGED: moved/renamed some vars
+* CHANGED: cron update check period for Email updates moved to update config (user editable)
+* FIXED: curl output for update changelog
+* ADDED: changelog in notification Email
+* ADDED: update config file cleanup
+* FIXED: misc script beauty
 ## 2.10  
 Oct 17 2021
 * ADDED: email notification for updates (default: no)
