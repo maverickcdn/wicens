@@ -1906,9 +1906,6 @@ F_local_script_update() {
 	if /usr/sbin/curl -fsL --retry 3 --connect-timeout 15 "$script_git_src" -o /jffs/scripts/wicens.sh ; then
 		[ ! -x "$script_name_full" ] && chmod a+rx "$script_name_full"
 		F_terminal_check_ok "Success, new script ver $update_auto_check_avail installed" ; F_terminal_padding
-		rm -f "$update_src" && F_default_update > "$update_src"   # incase update in update_src replace file	# v2.10
-		# current user_update_notification should be loaded if 0 overwrite on new file
-		[ "$user_update_notification" = '0' ] && sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=0/;}" "$update_src"   # v2.10
 		sed -i "1,/update_auto_check_epoch=.*/{s/update_auto_check_epoch=.*/update_auto_check_epoch='$(/bin/date +%s)'/;}" "$update_src"
 	else
 		F_terminal_check_fail "Error, failed downloading/saving new script version" ; F_terminal_padding
@@ -2402,6 +2399,26 @@ fi # end of wicens.lock and wicenssendmail.lock
 # configs   v2.20
 [ ! -f "$update_src" ] && F_default_update > "$update_src" && chmod 0644 "$config_src" && source "$update_src"
 [ ! -f "$config_src" ] && F_default > "$config_src" && chmod 0644 "$config_src" && source "$config_src"
+
+# update integrity check   v2.21
+# write current default_update to tmp and confirm if matches saved config, if not replace and update file
+F_default_update | grep -v '#' > '/tmp/wicens_integrity.tmp'
+while read -r update_config_read ; do
+	config_line_format="$(echo $update_config_read | cut -d'=' -f1)"
+	if ! grep -q "$config_line_format" < "$update_src" ; then
+		F_log "Invalid update config found... overwriting, missing $config_line_format variable"
+		rm -f "$update_src" && F_default_update > "$update_src"   # incase update in update_src replace file	# v2.10/2.21 moved
+		# current user_update_notification should be loaded if 0 overwrite on new file
+		[ "$user_update_notification" = '0' ] && sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=0/;}" "$update_src"   # v2.10/2.21 moved
+		rm -f '/tmp/wicens_integrity.tmp'
+		source "$update_src"
+		F_log "Replaced update config file"
+		break
+	else
+		printf '%b Found %s in update config... ok \n' "$tCHECKOK" "$config_line_format"   # debug msg
+	fi
+done < '/tmp/wicens_integrity.tmp'
+rm -f '/tmp/wicens_integrity.tmp'
 
 # check args start run create locks
 case $passed_options in
