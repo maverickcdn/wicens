@@ -1907,6 +1907,8 @@ F_local_script_update() {
 		[ ! -x "$script_name_full" ] && chmod a+rx "$script_name_full"
 		F_terminal_check_ok "Success, new script ver $update_auto_check_avail installed" ; F_terminal_padding
 		sed -i "1,/update_auto_check_epoch=.*/{s/update_auto_check_epoch=.*/update_auto_check_epoch='$(/bin/date +%s)'/;}" "$update_src"
+		sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='none'/;}" "$update_src"   # v2.22hf
+		[ "$update_notification_sent" = 1 ] && sed -i "1,/update_notification_sent=.*/{s/update_notification_sent=.*/update_notification_sent=0/;}" "$update_src"   # v2.22hf
 	else
 		F_terminal_check_fail "Error, failed downloading/saving new script version" ; F_terminal_padding
 	fi
