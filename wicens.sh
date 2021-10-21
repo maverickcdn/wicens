@@ -1963,7 +1963,7 @@ F_web_update_check() {
 				printf '\r%b Success%b checking for update %bhotfix%b available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR" "$tRED" "$tCLR"
 				F_terminal_padding
 				F_terminal_show "Change log:"   # v2.20
-				curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/^## $git_version/,/^##/p" | head -n -1 | sed 's/## //'    # v2.20
+				curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | sed 's/## //'    # v2.20
 			else
 				printf '\r%b Success%b checking for update none available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR"
 				# cleanup, if no update found, make sure update file is correct   # v2.20
@@ -1975,7 +1975,7 @@ F_web_update_check() {
 			printf '\r%b Success%b checking for update... Ver: %b%s%b available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR" "$tGRN" "$git_version" "$tCLR"
 			F_terminal_padding
 			F_terminal_show "Change log:"   # v2.20
-			curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/^## $git_version/,/^##/p" | head -n -1 | sed 's/## //'    # jackyaz connmon  # v2.10/2.20
+			curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | sed 's/## //'    # jackyaz connmon  # v2.10/2.20
 			menu_time=10
 		fi
 		source "$update_src"   # resource config to update vars in current session
@@ -2074,7 +2074,7 @@ F_update_mail_notify() {
 		[ "$update_auto_check_avail" != 'hotfix' ] && echo "Version $update_auto_check_avail is available"
 		echo ""
 		echo "Change log :"   # v2.20
-		echo "$(curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/^## $git_version/,/^##/p" | head -n -1 | sed 's/## //')"   # v2.20
+		echo "$(curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | sed 's/## //')"   # v2.20
 		echo ""
 		echo "Run wicens script on your router and select option u to update"
 		echo ""
