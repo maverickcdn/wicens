@@ -1,5 +1,8 @@
 # wicens change log
 -----------------
+## 2.22
+Oct 20 2021
+* FIXED: changelog sed for output/email
 ## 2.21
 Oct 20 2021
 * FIXED: update_src file properly replaced on update if change to file structure
