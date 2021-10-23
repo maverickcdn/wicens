@@ -2406,7 +2406,7 @@ fi # end of wicens.lock and wicenssendmail.lock
 # locks dont exist/removed continue below
 
 # configs   v2.20
-[ ! -f "$update_src" ] && F_default_update > "$update_src" && chmod 0644 "$config_src" && source "$update_src"
+[ ! -f "$update_src" ] && F_default_update > "$update_src" && chmod 0644 "$update_src" && source "$update_src"   # v2.30hf1
 [ ! -f "$config_src" ] && F_default > "$config_src" && chmod 0644 "$config_src" && source "$config_src"
 
 # update integrity check   v2.30 update_settings_ver=2.0
