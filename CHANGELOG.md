@@ -6,6 +6,7 @@ Oct 22 2021
 * FIXED: curl output for changelogs
 * FIXED: wan-event syntax back to v1.13
 * UPDATED: script, trimmed white space
+* HF: invalid file to set permissions
 ## 2.22
 Oct 20 2021
 * FIXED: changelog sed for output/email
