@@ -1,5 +1,11 @@
 # wicens change log
 -----------------
+## 2.30 
+Oct 22 2021
+* CHANGED: versioning on update config file, update on version change
+* FIXED: curl output for changelogs
+* FIXED: wan-event syntax back to v1.13
+* UPDATED: script, trimmed white space
 ## 2.22
 Oct 20 2021
 * FIXED: changelog sed for output/email
