@@ -17,9 +17,8 @@
 # github.com/maverickcdn/wicens
 # modified firmware checks to allow LTS Fork by john9527 March 2021 (special thanks to john9527 @ snbforums for adding compatibility for getrealip.sh)
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
-
 # START ###########################################################################################
-script_version='2.30'
+script_version='2.40'
 script_ver_date='October 22 2021'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
@@ -29,7 +28,7 @@ git_get="/usr/sbin/curl -fsL --retry 3 --connect-timeout 15 $script_git_src"   #
 mail_file='/tmp/wicens_email.txt'   # temp file for mail text
 mail_log="${script_dir}/wicens_email.log"   # log file for sendmail/curl
 config_src="${script_dir}/wicens_user_config.wic"   # user settings
-script_backup_file="${script_dir}/wicens_user_config.bak"   # user settings backup src
+script_backup_file="/jffs/scripts/wicens_user_config.backup"   # user settings backup src
 update_src="${script_dir}/wicens_update_conf.wic"   # update info
 update_check_period=900   # only re-check for update after 15 mins
 [ ! -d "$script_dir" ] && mkdir "$script_dir"
@@ -191,7 +190,7 @@ F_opt_backup_restore() {
 				F_terminal_show "Backup file exists, Y to overwrite, any key to return to Main Menu"
 				read -rsn1 configremove
 				case $configremove in
-					y|Y) rm -f "$script_backup_file" ; [ -f "${script_dir}/.wicens_cred.bak" ] && rm -f "${script_dir}/.wicens_cred.bak" ; printf "%b" "$tBACK$tERASE" ;;
+					y|Y) rm -f "$script_backup_file" ; printf "%b" "$tBACK$tERASE" ;;
 					*) F_clean_exit reload;;
 				esac
 				break
@@ -199,14 +198,6 @@ F_opt_backup_restore() {
 		fi
 		F_terminal_check "Starting backup"
 		if cp "$config_src" "$script_backup_file" ; then
-			if [ -f "$cred_loc" ] ; then
-				if ! cp "$cred_loc" "${script_dir}/.wicens_cred.bak" ; then
-					F_terminal_check_fail "Critical error, could not backup saved pswd"
-					F_clean_exit
-				else
-					F_terminal_check_ok "Success backing up password"
-				fi
-			fi
 			sed -i "1,/created_date=.*/{s/created_date=.*/created_date=''/;}" "$script_backup_file"   # reset install date
 			F_terminal_check_ok "Backup successful, saved to $script_backup_file"
 			echo "# Backup created $(/bin/date)" >> "$script_backup_file"
@@ -226,15 +217,10 @@ F_opt_backup_restore() {
 			F_status
 			F_terminal_padding ; F_terminal_check_ok "Done restoring backup settings to script"
 			if [ "$user_message_type" != 'smtp_isp_nopswd' ] ; then
-				if [ -f "${script_dir}/.wicens_cred.bak" ] ; then
-					if cp -f "${script_dir}/.wicens_cred.bak" "$cred_loc" ; then
-						F_terminal_check_ok "Pswd successfully restored"
-					else
-						F_terminal_check_fail "Critical error, backed up pswd not restored"
-					fi
-				else
-					F_terminal_check_fail "No backup pswd file found to restore, menu option p to re-add"
-				fi
+				F_terminal_padding ; F_terminal_check_fail "Script requires Email password for $user_from_addr"
+				F_terminal_padding ; F_terminal_check "Any key to enter password"
+				read -rsn1 pswdrestorewait
+				F_opt_pswd
 			fi
 		else
 			F_terminal_check_fail "Critical error copying backup to script"
@@ -244,7 +230,7 @@ F_opt_backup_restore() {
 	[ "$1" = 'resetbackup' ] && F_backup resetbackup && return 0   # from F_reset valid config incase want to save before reset
 	F_terminal_header ; F_terminal_padding
 	printf "%bBackup/Restore Settings Menu %b \n" "$tTERMHASH $tYEL" "$tCLR"  ; F_terminal_padding
-	if ! F_settings_test && [ ! -f "$script_backup_file" ] ; then
+	if [ "$settings_test" != 'OK' ] && [ ! -f "$script_backup_file" ] ; then
 		F_terminal_warning ; F_terminal_padding
 		F_terminal_check_fail "Error invalid current settings and no backup found to restore"
 		F_terminal_padding ; F_terminal_show "Use Menu option 1 to edit settings" ; F_terminal_padding
@@ -256,7 +242,7 @@ F_opt_backup_restore() {
 		else
 			F_terminal_check_fail "No backup found for restore" ; F_terminal_padding
 		fi
-		if F_settings_test ; then
+		if [ "$settings_test" = 'OK' ] ; then
 			F_terminal_check_ok "Valid config found!   B to Backup current config" ; F_terminal_padding
 		else
 			F_terminal_check_fail "No valid config found for backup, menu opt 1 to add a config" ; F_terminal_padding
@@ -265,7 +251,7 @@ F_opt_backup_restore() {
 		F_terminal_padding ; F_terminal_check "Selection : "
 		read -r bandrwait
 		case $bandrwait in
-			b|B) if ! F_settings_test ; then
+			b|B) if [ "$settings_test" != 'OK' ] ; then
 					F_terminal_check_fail "Error, no valid config found to backup"
 					F_terminal_padding ; F_terminal_check "Any key to return to main menu"
 					read -rsn1 backupwait ; F_main_menu
@@ -288,7 +274,7 @@ F_opt_backup_restore() {
 		esac
 		break
 	done
-} # backup_restore
+} # backup_restore   v2.40 removed pswd backup force re-entry
 
 F_opt_color() {
 	F_terminal_padding
@@ -471,7 +457,7 @@ F_opt_remove() {
 } ### remove
 
 F_opt_reset() {
-	if F_settings_test ; then
+	if [ "$settings_test" = 'OK' ] ; then
 		F_terminal_header ; F_terminal_warning ; printf "%b %bScript reset menu%b \n" "$tTERMHASH" "$tYEL" "$tCLR" ; F_terminal_padding
 		F_terminal_check_ok "Found valid config" ;F_terminal_padding
 		F_terminal_show "You're about to reset, would you like to make a backup?" ; F_terminal_padding
@@ -935,7 +921,7 @@ F_smtp_pswd() {
 		F_terminal_show "Error - Password cannot be empty, Retry(any key) Main Menu(M)"
 		read -rsn1 waitsmtppswd
 		case $waitsmtppswd in
-			m|M) exec sh "$script_name_full" ;;
+			m|M) F_clean_exit reload ;;   # v2.40
 		esac
 		return 1
 	fi
@@ -1130,6 +1116,7 @@ F_default_update() {
 	echo "#!/bin/sh
 # wicens update conf file
 update_settings_version='2.0'
+###########################################################
 update_auto_check_epoch=''
 update_auto_check_avail='none'
 update_notification_sent=0
@@ -1173,7 +1160,6 @@ F_build_settings() {
 		done
 	fi
 
-	chmod 0644 "$config_src"
 	F_status ; F_terminal_show "Adding entries in cron(cru)/services-start/wan-event for wicens"
 	F_auto_run_check
 	F_terminal_check_ok "Done, entries added in cron(cru)/services-start/wan-event for wicens"
@@ -1673,7 +1659,7 @@ F_current_wan_ip_get() {
 
 	F_getrealip() {   # watcher for getrealip.sh so if it hangs it doesnt sit around forever
 		sleep_wait=5
-		( sh /usr/sbin/getrealip.sh | grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}" ) & command_pid=$!
+		( sh /usr/sbin/getrealip.sh | grep -Eo "$ip_regex" ) & command_pid=$!
 		( sleep "$sleep_wait" && kill -HUP "$command_pid" 2> /dev/null && rm -f /tmp/wicenswanipget.tmp && F_log "NOTICE - Killed hung getrealip.sh process after 5 secs" ) & watcher_pid=$!
 		wait "$command_pid" && kill -HUP "$watcher_pid" 2> /dev/null
 		getrealip_call_count=$((getrealip_call_count - 1))
@@ -1683,7 +1669,7 @@ F_current_wan_ip_get() {
 		F_terminal_check "Retrieving WAN IP using getrealip.sh"
 
 		F_getrealip > /tmp/wicenswanipget.tmp   # output to file or watcher doesnt function properly when var=
-		current_wan_ip="$(grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}" /tmp/wicenswanipget.tmp 2>/dev/null )"
+		current_wan_ip="$(grep -Eo "$ip_regex" /tmp/wicenswanipget.tmp 2>/dev/null )"
 		[ -f '/tmp/wicenswanipget.tmp' ] && rm -f /tmp/wicenswanipget.tmp
 
 		if [ -z "$current_wan_ip" ] || [ "$current_wan_ip" = '0.0.0.0' ] ; then
@@ -1782,30 +1768,33 @@ F_reset_count() {
 
 F_settings_test() {
 	settings_test='OK'
+	# fail_reason v2.40
 	if [ -z "$user_from_addr" ] || [ -z "$user_message_type" ] || [ -z "$user_send_to_addr" ] || [ -z "$user_smtp_server" ]; then
+		settings_test='FAIL'
+		fail_reason="$(printf "[%bFAIL%b] Missing core settings \n\n" "$tRED" "$tCLR")"
 		return 1
 	fi
 	[ "$user_message_count" -eq 0 ] && settings_test='FAIL'
 	if [ "$user_message_count" -ge 2 ] && [ -z "$user_message_interval_1" ]; then
-		printf "[%bFAIL%b] Email notifications set to %s, missing interval 1/2 value \n" "$tRED" "$tCLR" "$user_message_count"
+		fail_reason="$(printf "[%bFAIL%b] Email notifications set to %s, missing interval 1/2 value \n\n" "$tRED" "$tCLR" "$user_message_count")"
 		F_log "Email notifications set to $user_message_count, missing interval 1/2 value"
 		settings_test='FAIL'
 	fi
 
 	if [ "$user_message_count" -ge 3 ] && [ -z "$user_message_interval_2" ]; then
-		printf "[%bFAIL%b] Email notifications set to %s, missing interval 2/3 value \n" "$tRED" "$tCLR" "$user_message_count"
+		fail_reason="$(printf "[%bFAIL%b] Email notifications set to %s, missing interval 2/3 value \n\n" "$tRED" "$tCLR" "$user_message_count")"
 		F_log "Email notifications set to $user_message_count, missing interval 2/3 value"
 		settings_test='FAIL'
 	fi
 
 	if [ "$user_message_count" -eq 4 ] && [ -z "$user_message_interval_3" ]; then
-		printf "[%bFAIL%b] Email notifications set to %s, missing interval 3/4 value \n" "$tRED" "$tCLR" "$user_message_count"
+		fail_reason="$(printf "[%bFAIL%b] Email notifications set to %s, missing interval 3/4 value \n\n" "$tRED" "$tCLR" "$user_message_count")"
 		F_log "Email notifications set to $user_message_count, missing interval 3/4 value"
 		settings_test='FAIL'
 	fi
 
 	if [ ! -f "$cred_loc" ] && [ "$user_message_type" != 'smtp_isp_nopswd' ]; then
-		printf "[%bFAIL%b] Email send type set to %s but missing required password \n" "$tRED" "$tCLR" "$user_message_type"
+		fail_reason="$(printf "[%bFAIL%b] Email send type set to %s but missing required password \n\n" "$tRED" "$tCLR" "$user_message_type")"
 		F_log "Email send type set to $user_message_type but missing required password"
 		settings_test='FAIL'
 	fi
@@ -1835,13 +1824,9 @@ F_settings_test() {
 		created_on="$(/bin/date +%c)" && sed -i "1,/created_date=.*/{s/created_date=.*/created_date='$created_on'/;}" "$config_src"
 		created_date="$created_on"   # for terminal show
 	fi
-
-	if [ "$settings_test" = 'OK' ]; then
-		return 0
-	else
-		return 1
-	fi
-} ### settings_test
+	
+	[ "$settings_test" = 'OK' ] && return 0 || return 1
+} ### settings_test   v2.40 updated
 
 F_google_ping() {
 	F_test_sites() {
@@ -1891,7 +1876,7 @@ F_internet_check() {
 
 F_local_script_update() {
 	F_terminal_header
-	if F_settings_test && [ ! -f "$script_backup_file" ] ; then
+	if [ "$settings_test" = 'OK' ] && [ ! -f "$script_backup_file" ] ; then
 		F_terminal_warning
 		F_terminal_check_fail "No backup file exists for your config." ; F_terminal_padding
 		F_terminal_show "Recommended to create a backup before upgrading" ; F_terminal_padding
@@ -2019,7 +2004,7 @@ F_clean_exit() {
 } ### clean_exit
 
 F_ready_check() {
-	if ! F_settings_test; then
+	if [ "$settings_test" != 'OK' ] ; then
 		if [ "$from_menu" = 'yes' ] ; then
 			[ "$1" = 'pswdset' ] && return 0
 			[ "$1" != 'options' ] && F_terminal_header   # not sent here from a menu option, displayed already
@@ -2110,7 +2095,11 @@ F_update_mail_notify() {
 F_terminal_header() {
 	clear
 	sed -n '2,11p' "$script_name_full"
-	printf "%5s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(/bin/date +%c)" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$device_model" "$tCLR" "$tGRN" "$build_no" "$build_sub" "$build_extend" "$tCLR"
+	if [ "$build_no" = '384' ] || [ "$build_no" = '386' ] ; then
+		printf "%5s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(/bin/date +%c)" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$device_model" "$tCLR" "$tGRN" "$build_no" "$build_sub" "$build_extend" "$tCLR"
+	else   # v2.40
+		printf "%2s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(/bin/date +%c)" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$device_model" "$tCLR" "$tGRN" "$build_no" "$build_sub" "$build_extend" "$tCLR"
+	fi
 	[ "$test_mode_active" = 'yes' ] && printf "%b %b###  Test Mode - Sending $user_message_count message(s) ### %b\n" "$tTERMHASH" "$tYEL" "$tCLR"
 	F_terminal_separator
 } ### terminal_header
@@ -2199,10 +2188,11 @@ F_main_menu() {
 	grep -q "(sh $script_name_full wancall)" 2> /dev/null '/jffs/scripts/wan-event' && printf "%bActive%b\n" "$tGRN" "$tCLR" || printf "%bDisabled%b\n" "$tRED" "$tCLR"
 	F_terminal_separator; printf "       Option                      Select   Status \n" ;F_terminal_separator
 
-	if F_settings_test ; then
+	if [ "$settings_test" = 'OK' ] ; then
 		printf "%b Enable autorun/manual check--: m%b     Ready%b\n" "$tTERMHASH" "$tGRN" "$tCLR"
 		printf "%b Create/edit settings---------: 1%b     Exists%b\n" "$tTERMHASH" "$tGRN" "$tCLR"
 	else
+		printf '%s\n' "$fail_reason"
 		printf "%b Enable autorun/manual check--: m%b     Not Ready%b\n" "$tTERMHASH" "$tRED" "$tCLR"
 		printf "%b Create/edit settings---------: 1%b     Missing/incomplete settings %b\n" "$tTERMHASH" "$tRED" "$tCLR"
 		[ -f "$script_backup_file" ] && printf "%b Found backup config file-----:       %bExists%b - opt b to restore \n" "$tTERMHASH" "$tGRN" "$tCLR"
@@ -2420,6 +2410,9 @@ if [ "$update_settings_version" != '2.0' ] || [ -z "$update_settings_version" ] 
 	source "$update_src"
 fi
 
+# test settings valid and set var for script to use  v2.40 
+F_settings_test
+
 # check args start run create locks
 case $passed_options in
 	'cron'|'wancall'|'test') F_lock_create ;;   # create lock and fall through to auto run
@@ -2434,7 +2427,7 @@ esac
 [ -f "$mail_file" ] && rm -f "$mail_file"   # if email message still exists somehow, cleanup
 [ -f "$script_mail_lock" ] && rm -f "$script_mail_lock"   # if mail lock exists somehow, cleanup
 
-F_ready_check   # check if settings are valid before continuing to test/cron/wancall
+F_ready_check   # check if settings are valid before continuing to test/cron/wancall, log exit otherwise
 
 if [ "$passed_options" = 'test' ] ; then
 	F_opt_test
