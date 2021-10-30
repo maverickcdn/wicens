@@ -1,5 +1,13 @@
 # wicens change log
 -----------------
+## 2.40
+Oct 29 2021
+* CHANGED: terminal output header for lts374
+* CHANGED: performance update, not calling settings test repeatedly
+* CHANGED: fail messages for invalid settings
+* FIXED: duplicate set file permission
+* CHANGED: removed pswd backup force re-entry on restore
+* MOVED: user backup to /jffs/scripts  more visible for saving if formatting jffs
 ## 2.30 
 Oct 22 2021
 * CHANGED: versioning on update config file, update on version change
