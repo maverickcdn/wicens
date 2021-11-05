@@ -1,5 +1,8 @@
 # wicens change log
 -----------------
+## 2.41
+Nov 4 2021
+* FIXED: timezone DST adjustment with cron
 ## 2.40
 Oct 29 2021
 * CHANGED: terminal output header for lts374
