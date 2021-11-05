@@ -10,7 +10,7 @@
 #                                                                          #
 ############################################################################
 # Thanks to all who contribute(d) at SNBforums, pieces of your code are here ;)
-# Code snippets/ideas from JackYaz dave13405 Adamm00 thelonelycoder MartineauUK
+# Code snippets/ideas from JackYaz dave13405 Adamm00 thelonelycoder MartineauUK ColinTaylor
 # shellcheck disable=SC3045,SC2034,SC3003,SC3046,SC1090,SC2154
 # disable notices about posix compliant -s   reads unused vars   backspace in pswd check  source   unfoundvars
 # written by maverickcdn Oct 2021 (v2.0)
@@ -18,8 +18,8 @@
 # modified firmware checks to allow LTS Fork by john9527 March 2021 (special thanks to john9527 @ snbforums for adding compatibility for getrealip.sh)
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 # START ###########################################################################################
-script_version='2.40'
-script_ver_date='October 22 2021'
+script_version='2.41'
+script_ver_date='November 4 2021'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
@@ -2292,6 +2292,8 @@ if [ "$(nvram get ntp_ready)" -ne 1 ] ; then
 fi
 [ -f "$ntp_lock" ] && rm -f "$ntp_lock"   # remove ntplock on success after waiting for ntp
 # time set
+TZ=$(cat /etc/TZ)   # v2.41
+export TZ   # v2.41
 run_date="$(/bin/date +%c)"
 run_epoch="$(/bin/date +%s)"
 [ -n "$update_auto_check_epoch" ] && update_diff=$((run_epoch - update_auto_check_epoch)) || update_diff="$update_check_period"
