@@ -10,16 +10,17 @@
 #                                                                          #
 ############################################################################
 # Thanks to all who contribute(d) at SNBforums, pieces of your code are here ;)
-# Code snippets/ideas from JackYaz dave13405 Adamm00 thelonelycoder MartineauUK ColinTaylor
+# And thanks to RMerlin for making everything possible
+# Code snippets/ideas from JackYaz dave13405 Adamm00 thelonelycoder MartineauUK ColinTaylor losuler(github)
 # shellcheck disable=SC3045,SC2034,SC3003,SC3046,SC1090,SC2154
-# disable notices about posix compliant -s   reads unused vars   backspace in pswd check  source   unfoundvars
+# disable notices about posix compliant -s   reads unused vars   hex/backspace in pswd check  source   unfoundvars
 # written by maverickcdn Oct 2021 (v2.0)
 # github.com/maverickcdn/wicens
 # modified firmware checks to allow LTS Fork by john9527 March 2021 (special thanks to john9527 @ snbforums for adding compatibility for getrealip.sh)
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 # START ###########################################################################################
-script_version='2.41'
-script_ver_date='November 4 2021'
+script_version='2.50'
+script_ver_date='November 6 2021'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
@@ -46,7 +47,7 @@ pulled_lan_name="$(nvram get lan_domain)"
 # vars from user config below #####################################################################
 [ -f "$config_src" ] && source "$config_src"
 [ -f "$update_src" ] && source "$update_src"
-[ -z "$saved_wan_epoch" ] && saved_wan_epoch="$(/bin/date +%s)"
+[ -z "$saved_wan_epoch" ] && saved_wan_epoch="$(/bin/date +"%s")"
 user_custom_subject_decoded="$(echo "$user_custom_subject" | openssl base64 -d)"
 user_custom_text_decoded="$(echo "$user_custom_text" | openssl base64 -d)"
 user_custom_script_decoded="$(echo "$user_custom_script" | openssl base64 -d)"
@@ -94,9 +95,9 @@ fi
 
 # alias ###########################################################################################
 if [ ! -f '/jffs/configs/profile.add' ] ; then
-	echo "alias wicens=\"sh ${script_name_full}\"   # added by wicens" > /jffs/configs/profile.add
+	echo "alias wicens=\"sh ${script_name_full}\"   # added by wicens $(/bin/date +"%c")" > /jffs/configs/profile.add
 elif ! grep -q "alias wicens=" '/jffs/configs/profile.add' ; then
-	echo "alias wicens=\"sh ${script_name_full}\"   # added by wicens" >> /jffs/configs/profile.add
+	echo "alias wicens=\"sh ${script_name_full}\"   # added by wicens $(/bin/date +"%c")" >> /jffs/configs/profile.add
 fi
 
 # empty user_name #################################################################################
@@ -211,7 +212,7 @@ F_opt_backup_restore() {
 		F_terminal_check "Restoring backup"
 		if cp -f "$script_backup_file" "$config_src" ; then
 			echo "# File restored from backup on $(/bin/date)" >> "$config_src"
-			created_on="$(/bin/date +%c)"
+			created_on="$(/bin/date +"%c")"
 			sed -i "1,/created_date=.*/{s/created_date=.*/created_date='$created_on'/;}" "$config_src"   # new install date
 			source "$config_src"
 			F_status
@@ -238,12 +239,12 @@ F_opt_backup_restore() {
 	fi
 	while true; do
 		if [ -f "$script_backup_file" ] ; then
-			F_terminal_check_ok "Backup found!   R to Restore Settings" ; F_terminal_padding
+			F_terminal_check_ok "Backup found!   r to restore settings" ; F_terminal_padding
 		else
 			F_terminal_check_fail "No backup found for restore" ; F_terminal_padding
 		fi
 		if [ "$settings_test" = 'OK' ] ; then
-			F_terminal_check_ok "Valid config found!   B to Backup current config" ; F_terminal_padding
+			F_terminal_check_ok "Valid config found!   b to backup current config" ; F_terminal_padding
 		else
 			F_terminal_check_fail "No valid config found for backup, menu opt 1 to add a config" ; F_terminal_padding
 		fi
@@ -400,14 +401,36 @@ F_opt_error() {
 	fi
 } # error
 
+F_opt_fw_notifications() {
+	if F_ready_check ; then
+		if [ "$user_fw_update_notification" = 1 ] ; then
+			if [ "$buildno" = '374' ] ; then
+				F_terminal_show "Sorry, this version of firmware is not compatible"
+				F_menu_exit
+			fi
+			F_fw_updates enable
+		elif [ "$user_fw_update_notification" = 0 ] ; then
+			F_fw_updates disable
+		fi
+	else
+		F_terminal_check_fail "Error, no/invalid Email settings, use opt 1 to edit settings"
+	fi
+	F_menu_exit
+} # fw_notifications			# v2.50
+
 F_opt_notifications() {
-	if [ "$user_update_notification" = 1 ] ; then
-		F_log_terminal_ok "Enabling Email notifications for script updates"
-		sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=0/;}" "$update_src"
-		F_menu_exit
-	elif [ "$user_update_notification" = 0 ] ; then
-		F_log_terminal_ok "Disabling Email notifications for script updates"
-		sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=1/;}" "$update_src"
+	if F_ready_check ; then
+		if [ "$user_update_notification" = 1 ] ; then
+			F_log_terminal_ok "Enabling Email notifications for script updates"
+			sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=0/;}" "$update_src"
+			F_menu_exit
+		elif [ "$user_update_notification" = 0 ] ; then
+			F_log_terminal_ok "Disabling Email notifications for script updates"
+			sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=1/;}" "$update_src"
+			F_menu_exit
+		fi
+	else
+		F_terminal_check_fail "Error, no/invalid Email settings, use opt 1 to edit settings"
 		F_menu_exit
 	fi
 } # notifications			# v2.10
@@ -486,8 +509,9 @@ F_opt_reset() {
 		esac
 		break
 	done
-	! F_reset_do && F_terminal_check_fail "Reset failed"
 	! F_disable_autorun && F_terminal_check_fail "Auto run removal failed"
+	! F_fw_updates disable && F_terminal_check_fail "FW update disable failed"
+	! F_reset_do && F_terminal_check_fail "Reset failed"	
 	F_terminal_padding ; F_terminal_check "Any key to continue" ; read -rsn1 donewait && F_clean_exit reload   # send fromreset to restart menu
 } ### reset
 
@@ -653,7 +677,8 @@ F_opt_uninstall() {
 			F_log_show "/jffs/scripts/services-start wicens entry"
 			F_log_show "/jffs/scripts/wan-event wicens entry"
 		fi
-
+		F_fw_updates disable   # v2.50
+		[ -f "$script_backup_file" ] && rm -f "$script_backup_file"   # v2.50
 		[ -f "$script_lock" ] && rm -f "$script_lock"
 		[ -f "$script_mail_lock" ] && rm -f "$script_mail_lock"
 		[ -f "$mail_log" ] && rm -f "$mail_log"
@@ -671,17 +696,16 @@ F_opt_uninstall() {
 	F_terminal_header ; F_terminal_warning ; F_terminal_show "This will remove the wicens script ENTIRELY from your system"
 	F_terminal_show "And any backup configs" ; F_terminal_padding
 	while true; do
-		F_terminal_check "Are you sure you wish to uninstall? Y or N"
+		F_terminal_check "Are you sure you wish to uninstall? Type YES - or n to exit"
 		read -rsn1 uninstall_wait
 		case $uninstall_wait in
-			y|Y) F_terminal_check_ok "Uninstalling" ; F_terminal_padding ; F_uninstall_do ;;
+			'YES') F_terminal_check_ok "Uninstalling" ; F_terminal_padding ; F_uninstall_do ;;
 			n|N) F_terminal_check_ok "No received, exiting..." ; F_menu_exit ;;
 			*) F_fail_entry ;;
 		esac
 		break
 	done
 } ### uninstall
-
 
 # BUILD USER SETTINGS FUNCTIONS ###################################################################
 
@@ -822,12 +846,13 @@ F_send_type() {
 	[ "$send_type_entry" = "5" ] &&  sed -i "1,/user_message_type=.*/{s/user_message_type=.*/user_message_type='smtp_start_tls_v1'/;}" "$config_src" && user_message_type="smtp_start_tls_v1"
 
 	if [ "$user_message_type" != 'smtp_isp_nopswd' ] && [ "$user_message_type" != 'smtp_plain_auth' ]; then
-		F_terminal_padding ; F_terminal_padding
+		F_terminal_header ; F_terminal_padding ; F_terminal_warning
+		#F_terminal_padding ; F_terminal_padding
 		F_terminal_show "If using GMail for your sending service"
 		F_terminal_show "Insecure app access MUST be enabled in your GMail account settings"
 		F_terminal_show "If you use 2-factor authentication"
 		F_terminal_show "You must setup an app pswd for this script"
-		F_terminal_show "Any key to continue" && read -rsn1 notify_wait
+		F_terminal_padding ; F_terminal_check "Any key to continue" && read -rsn1 notify_wait
 	fi
 	return 0
 } ### send_type
@@ -1109,23 +1134,26 @@ last_wancall_log_count=0
 opt_color='yes'
 log_cron_msg=0
 ###########################################################
-# Created : $(/bin/date +%c)"
+# Created : $(/bin/date +"%c")"
 } ### default
 
 F_default_update() {
 	echo "#!/bin/sh
 # wicens update conf file
-update_settings_version='2.0'
+update_settings_version='2.1'
 ###########################################################
 update_auto_check_epoch=''
 update_auto_check_avail='none'
-update_notification_sent=0
+update_notify_state=0
 update_cron_epoch=''
 user_update_notification=1
 update_period=14400
+user_fw_update_notification=1
+update_fw_notify_state=0
 ###########################################################
-# Created : $(/bin/date +%c)"
-}	# v2.10/2.20/2.30 updated  update integrity check if updating version
+# Created : $(/bin/date +"%c")"
+}	# v2.10/2.20/2.30/2.50 updated  update integrity check if updating version
+# 2.1 added update_fw_notify_state set to 1 by update-notification till email success, user_fw_update_notification, rename update_notify
 
 F_build_settings() {
 	building_settings='yes'   # for opt_sample no exit, move to test option
@@ -1214,7 +1242,7 @@ F_email_message() {
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		[ -z "$user_custom_subject" ] && echo "Subject: WAN IP has changed on $device_model" || echo "Subject: $formatted_custom_subject"
 		echo "From: $user_from_name <$user_from_addr>"
-		echo "Date: $(/bin/date +%c)"
+		echo "Date: $(/bin/date +"%c")"
 		echo ""
 		[ "$test_mode_active" = 'yes' ] && [ "$passed_options" != 'sample' ] && echo "### This is a TEST message ###" && echo ""
 		echo "NOTICE"
@@ -1254,7 +1282,7 @@ F_email_message() {
 	fi
 	{ # start of message output 2/2
 		echo ""
-		echo "Message sent : $(/bin/date +%c)"
+		echo "Message sent : $(/bin/date +"%c")"
 		echo ""
 		echo "A message from wicens script on your $device_model"
 		if [ "$passed_options" != 'sample' ] ; then   # padding incase emails contain footer info
@@ -1320,7 +1348,7 @@ F_send_format_ssl() {
 
 F_send_message() {
 	touch "$mail_log"
-	echo "Created by PID $$ on $(/bin/date +%c), ran by $passed_options" >> "$mail_log"
+	echo "Created by PID $$ on $(/bin/date +"%c"), ran by $passed_options" >> "$mail_log"
 	[ -f "$cred_loc" ] && user_pswd="$(cat "$cred_loc" | openssl enc -md sha512 -pbkdf2 -aes-256-cbc -d -a -pass pass:"$(nvram get boardnum | sed 's/://g')" )"
 	if [ "$user_message_type" = 'smtp_isp_nopswd' ]; then
 		if F_send_format_isp ; then return 0 ; else return 1 ; fi
@@ -1340,7 +1368,7 @@ F_send_mail() {
 	until F_internet_check ; do : ; done   # monitors/runs F_google_ping (attempts 5mins/30s interval)
 	rm -f "$mail_log" 2> /dev/null
 	touch "$script_mail_lock" # temp lockfile#2
-	echo "Sending mail for $script_name_full on : $(/bin/date +%c)" >> "$script_mail_lock"
+	echo "Sending mail for $script_name_full on : $(/bin/date +"%c")" >> "$script_mail_lock"
 	echo "Sending mail from $(cat "$script_lock")" >> "$script_mail_lock"
 
 	loop_run='1'
@@ -1459,7 +1487,8 @@ F_serv_start() {
 				F_terminal_check_fail "Your services-start does not contain a '#!/bin/sh', please investigate and run again"
 				F_clean_exit
 			fi
-			if echo "cru a wicens \"*/10 * * * * $script_name_full cron\"   # added by wicens" >> '/jffs/scripts/services-start' ; then
+			if echo "cru a wicens \"*/10 * * * * $script_name_full cron\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/services-start' ; then
+				echo "logger -t \"[\$\$]services-start\" \"Added wicens entry to cron(cru)\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/services-start'
 				F_log_terminal_ok "ADDED a cron(cru) entry for wicens to /jffs/scripts/services-start"
 			else
 				F_log_show "Critical error, failed writing cron command to services-start"
@@ -1471,7 +1500,8 @@ F_serv_start() {
 			touch '/jffs/scripts/services-start'
 			F_log_terminal_ok "Created services-start in /jffs/scripts/"
 			if echo '#!/bin/sh' >> /jffs/scripts/services-start ; then
-				if echo "cru a wicens \"*/10 * * * * $script_name_full cron\"   # added by wicens" >> /jffs/scripts/services-start ; then
+				if echo "cru a wicens \"*/10 * * * * $script_name_full cron\"   # added by wicens $(/bin/date +"%c")" >> /jffs/scripts/services-start ; then
+					echo "logger -t \"[\$\$]services-start\" \"Added wicens entry to cron(cru)\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/services-start'
 					chmod a+rx "/jffs/scripts/services-start"
 					F_log_terminal_ok "ADDED cron entry for wicens cron call in /jffs/scripts/services-start"
 					F_log "Created services-start in /jffs/scripts/ and added cron entry for wicens"
@@ -1513,7 +1543,8 @@ F_wan_event() {
 				F_clean_exit
 			fi
 			sed -i "\| $script_name_full wancall & |d" '/jffs/scripts/wan-event'   # clean pre 2.30
-			if echo "[ \"\$2\" = \"connected\" ] && (sh $script_name_full wancall) &   # added by wicens" >> /jffs/scripts/wan-event ; then
+			if echo "[ \"\$2\" = \"connected\" ] && (sh $script_name_full wancall) &   # added by wicens $(/bin/date +"%c")" >> /jffs/scripts/wan-event ; then
+				echo "logger -t \"[\$\$]wan-event\" \"Started wicens with pid \$wicenspid\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/wan-event'
 				F_log_terminal_ok "ADDED wicens to wan-event with connected event trigger"
 			else
 				F_terminal_check_fail "Error, failed writing wicens wancall entry to wan-event"
@@ -1525,7 +1556,8 @@ F_wan_event() {
 			touch '/jffs/scripts/wan-event'
 			F_terminal_check_ok "Created wan-event in /jffs/scripts/"
 			if echo '#!/bin/sh' >> /jffs/scripts/wan-event ; then
-				if echo "[ \"\$2\" = \"connected\" ] && (sh $script_name_full wancall) &   # added by wicens" >> /jffs/scripts/wan-event ; then
+				if echo "[ \"\$2\" = \"connected\" ] && (sh $script_name_full wancall) &   # added by wicens $(/bin/date +"%c")" >> /jffs/scripts/wan-event ; then
+					echo "logger -t \"[\$\$]wan-event\" \"Started wicens with pid \$wicenspid\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/wan-event'
 					chmod a+rx '/jffs/scripts/wan-event'
 					F_terminal_check_ok "ADDED connected event entry for wicens wancall in /jffs/scripts/wan-event"
 					F_log "Created wan-event in /jffs/scripts/ and added connected event entry for wicens"
@@ -1549,7 +1581,7 @@ F_auto_run_check() {
 } ### auto_run_check
 
 F_disable_autorun() {
-	F_terminal_check "Removing cron entry for wicens"
+	F_terminal_check "Removing wicens entry in cron(cru)"
 	if cru l | grep -q "$script_name cron" ; then
 		if cru d wicens ; then
 			F_log_terminal_ok "Removed cron entry for wicens"
@@ -1560,10 +1592,11 @@ F_disable_autorun() {
 	else
 		F_terminal_check_ok "No entry found for wicens in cron(cru) to remove"
 	fi
-	F_terminal_check "Removing services-start entry for wicens"
+	F_terminal_check "Removing wicens entry in services-start"
 	if [ -f '/jffs/scripts/services-start' ]; then
 		if grep -q "$script_name_full cron" '/jffs/scripts/services-start' 2> /dev/null; then
 			if sed -i "\| $script_name_full |d" '/jffs/scripts/services-start' ; then
+				sed -i '/Added wicens entry/d' '/jffs/scripts/services-start'
 				F_log_terminal_ok "Removed services-start entry for wicens"
 			else
 				F_terminal_check_fail "Error, could not remove wicens entry in /jffs/scripts/services-start"
@@ -1581,15 +1614,15 @@ F_disable_autorun() {
 	else
 		F_terminal_check_ok "/jffs/scripts/services-start is already removed"
 	fi
-	F_terminal_check "Removing wan-event entry for wicens"
+	F_terminal_check "Removing wicens entry in wan-event"
 	if [ -f '/jffs/scripts/wan-event' ]; then
 		if grep -q "$script_name_full wancall" '/jffs/scripts/wan-event' 2> /dev/null; then
 			sed -i "\| $script_name_full |d" '/jffs/scripts/wan-event'
+			sed -i '/Started wicens with pid/d' '/jffs/scripts/wan-event'
 			F_log_terminal_ok "Removed wan-event entry for wicens"
 		else
 			F_terminal_check_ok "No entry found for wicens in /jffs/scripts/wan-event to remove"
 		fi
-
 		if [ "$(wc -l < /jffs/scripts/wan-event)" -eq 1 ]; then
 			if grep -q "#!/bin/sh" "/jffs/scripts/wan-event"; then
 				F_log_terminal_ok "/jffs/scripts/wan-event appears empty, removing file"
@@ -1732,7 +1765,7 @@ F_reset_do() {
 	[ -f "$cred_loc" ] && rm -f "$cred_loc"
 	[ -f "$config_src" ] && rm -f "$config_src"
 	[ -f "$update_src" ] && rm -f "$update_src"   # v2.20
-	printf '%b' "$tBACK$tERASE" ; F_log_terminal_ok "Done, script user settings reset to default"
+	printf '%b' "$tERASE" ; F_log_terminal_ok "Done, script user settings reset to default"
 	[ -f "$mail_log" ] && rm -f "$mail_log"
 	return 0
 } ### reset_do
@@ -1821,10 +1854,10 @@ F_settings_test() {
 
 	# incase ran reset count but didnt rerun setup
 	if [ -z "$created_date" ]; then
-		created_on="$(/bin/date +%c)" && sed -i "1,/created_date=.*/{s/created_date=.*/created_date='$created_on'/;}" "$config_src"
+		created_on="$(/bin/date +"%c")" && sed -i "1,/created_date=.*/{s/created_date=.*/created_date='$created_on'/;}" "$config_src"
 		created_date="$created_on"   # for terminal show
 	fi
-	
+
 	[ "$settings_test" = 'OK' ] && return 0 || return 1
 } ### settings_test   v2.40 updated
 
@@ -1894,9 +1927,9 @@ F_local_script_update() {
 	if /usr/sbin/curl -fsL --retry 3 --connect-timeout 15 "$script_git_src" -o /jffs/scripts/wicens.sh ; then
 		[ ! -x "$script_name_full" ] && chmod a+rx "$script_name_full"
 		F_terminal_check_ok "Success, new script ver $update_auto_check_avail installed" ; F_terminal_padding
-		sed -i "1,/update_auto_check_epoch=.*/{s/update_auto_check_epoch=.*/update_auto_check_epoch='$(/bin/date +%s)'/;}" "$update_src"
+		sed -i "1,/update_auto_check_epoch=.*/{s/update_auto_check_epoch=.*/update_auto_check_epoch='$(/bin/date +"%s")'/;}" "$update_src"
 		sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='none'/;}" "$update_src"   # v2.22hf
-		[ "$update_notification_sent" = 1 ] && sed -i "1,/update_notification_sent=.*/{s/update_notification_sent=.*/update_notification_sent=0/;}" "$update_src"   # v2.22hf
+		[ "$update_notify_state" = 1 ] && sed -i "1,/update_notify_state=.*/{s/update_notify_state=.*/update_notify_state=0/;}" "$update_src"   # v2.22hf
 	else
 		F_terminal_check_fail "Error, failed downloading/saving new script version" ; F_terminal_padding
 	fi
@@ -1924,12 +1957,17 @@ F_web_update_check() {
 			done
 		}
 		# menu timer
-		menu_time=2
+		menu_time=10
 		F_menu_countdown() {
 			while [ "$menu_time" != '0' ] ; do
-				printf "%b Loading menu in %s secs... " "$tCHECK" "$menu_time"
+				printf "%b Loading menu in %s secs... any key to skip " "$tCHECK" "$menu_time"
 				menu_time=$((menu_time - 1))
-				sleep 1
+				#sleep 1
+				updatewaiting=zzz  # v2.50 set update to 3 chars read/sleep 1 capture char&enter (ie 1 char) and break
+				read -rsn1 -t1 updatewaiting
+				if [ ${#updatewaiting} -le 1 ] ; then
+					break
+				fi
 				printf '\r%b' "$tERASE"
 			done
 		}
@@ -1946,7 +1984,7 @@ F_web_update_check() {
 			return 1   # skip everything below
 		fi
 		kill "$time_pid" >/dev/null 2>&1
-		sed -i "1,/update_auto_check_epoch=.*/{s/update_auto_check_epoch=.*/update_auto_check_epoch='$(/bin/date +%s)'/;}" "$update_src"
+		sed -i "1,/update_auto_check_epoch=.*/{s/update_auto_check_epoch=.*/update_auto_check_epoch='$(/bin/date +"%s")'/;}" "$update_src"
 		if [ "$script_version" = "$git_version" ] ; then
 			if [ "$local_md5" != "$server_md5" ] ; then
 				sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='hotfix'/;}" "$update_src"
@@ -1958,7 +1996,7 @@ F_web_update_check() {
 				printf '\r%b Success%b checking for update none available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR"
 				# cleanup, if no update found, make sure update file is correct   # v2.20
 				[ "$update_auto_check_avail" != 'none' ] && sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='none'/;}" "$update_src"
-				[ "$update_notification_sent" = 1 ] && sed -i "1,/update_notification_sent=.*/{s/update_notification_sent=.*/update_notification_sent=0/;}" "$update_src"
+				[ "$update_notify_state" = 1 ] && sed -i "1,/update_notify_state=.*/{s/update_notify_state=.*/update_notify_state=0/;}" "$update_src"
 			fi
 		else
 			sed -i "1,/update_auto_check_avail=.*/{s/update_auto_check_avail=.*/update_auto_check_avail='$git_version'/;}" "$update_src"
@@ -1966,7 +2004,6 @@ F_web_update_check() {
 			F_terminal_padding
 			F_terminal_show "Change log:"   # v2.20
 			curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | sed 's/## //'    # jackyaz connmon  # v2.10/2.20
-			menu_time=10
 		fi
 		source "$update_src"   # resource config to update vars in current session
 	else
@@ -2016,6 +2053,7 @@ F_ready_check() {
 			[ "$passed_options" != 'manual' ] && F_log "Run $script_name_full to add a config to this script"
 			F_clean_exit
 		fi
+		return 1
 	else # passes test but trying to establish pswd with isp_type or incomplete settings
 		if [ "$1" = 'pswdset' ] ; then
 			if [ "$user_message_type" = 'smtp_isp_nopswd' ] || [ -z "$user_message_type" ] ; then
@@ -2024,6 +2062,7 @@ F_ready_check() {
 				F_menu_exit
 			fi
 		fi
+		return 0
 	fi
 } ### ready_check   runs F_settings test and allows or not
 
@@ -2054,12 +2093,11 @@ F_update_mail_notify() {
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		echo "Subject: Update available for wicens script"
 		echo "From: $user_from_name <$user_from_addr>"
-		echo "Date: $(/bin/date +%c)"
+		echo "Date: $(/bin/date +"%c")"
 		echo ""
 		echo "NOTICE"
 		echo ""
 		echo "Update is available for wicens script on your $device_model"
-		echo ""
 		echo ""
 		echo "Version $update_auto_check_avail is available"
 		echo ""
@@ -2087,8 +2125,108 @@ F_update_mail_notify() {
 	user_pswd=''
 	rm -f "$mail_file"
 	F_log_terminal_ok "Finished sending update notification Email"   # v2.20
-	sed -i "1,/update_notification_sent=.*/{s/update_notification_sent=.*/update_notification_sent=1/;}" "$update_src"   # v2.20 moved from caller
+	sed -i "1,/update_notify_state=.*/{s/update_notify_state=.*/update_notify_state=1/;}" "$update_src"   # v2.20 moved from caller
 } ### update_mail_notify	# v2.10
+
+F_fw_update_notify() {
+	new_fw_ver="$(nvram get webs_state_info)"
+	new_fw_ver_pretty="$(echo "$new_fw_ver" | awk -F '_' '{print $2 "." $3 "_" $4}')"
+	F_terminal_check "Sending notification Email for available firmware update version $new_fw_ver_pretty ..."
+	{
+		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
+		echo "Subject: Firmware Update version $new_fw_ver_pretty available"
+		echo "From: $user_from_name <$user_from_addr>"
+		echo "Date: $(/bin/date +"%c")"
+		echo ""
+		echo "NOTICE"
+		echo ""
+		echo "Update to Firmware version $new_fw_ver_pretty is available for your $device_model"
+		echo ""
+		echo "Visit https://www.asuswrt-merlin.net"
+		echo ""
+		echo "----------------------------------------------------------------------------"
+		echo ""
+	} >> "$mail_file"
+	internet_check_count=0
+	until F_internet_check ; do : ; done   # monitors/runs F_google_ping (attempts 5mins/30s interval)
+	rm -f "$mail_log" 2> /dev/null
+	if ! F_send_message; then
+		F_log "Error, failed to send Firmware update notification Email"
+		user_pswd=''
+		rm -f "$mail_file"
+		return 1
+	fi
+	user_pswd=''
+	rm -f "$mail_file"
+	F_log_terminal_ok "Finished sending Firmware update notification Email"
+	sed -i "1,/update_fw_notify_state=.*/{s/update_fw_notify_state=.*/update_fw_notify_state=0/;}" "$update_src"
+} ### fw_update_notify   v2.50
+
+F_fw_updates() {
+	if [ "$1" = 'check' ] ; then
+		if [ -f '/jffs/scripts/update-notification' ] ; then
+			if grep -q "$script_name_full fwupdate" '/jffs/scripts/update-notification' ; then
+				return 0
+			fi
+		fi
+		return 1
+	fi
+	if [ "$1" = 'enable' ] ; then
+		if [ -f '/jffs/scripts/update-notification' ] ; then
+			if grep -q $'\x0D' '/jffs/scripts/update-notification' 2>/dev/null ; then dos2unix /jffs/scripts/update-notification ; fi
+			[ ! -x '/jffs/scripts/update-notification' ] && chmod a+rx '/jffs/scripts/update-notification'
+			F_terminal_check "Adding wicens to update-notification script"
+			if ! grep -q '#!/bin/sh' '/jffs/scripts/update-notification' ; then
+				F_terminal_check_fail "Your update-notification does not contain a '#!/bin/sh', please investigate and run again"
+				F_log "Your update-notification does not contain a '#!/bin/sh', please investigate and run again"
+				F_clean_exit
+			fi
+			echo "(sh /jffs/scripts/$script_name fwupdate) & wicenspid=$!   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/update-notification'
+			echo "logger -t \"[\$\$]update-notification\" \"Started wicens with pid \$wicenspid\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/update-notification'
+			F_terminal_check_ok "ADDED wicens entry to update-notification"
+		else
+			touch '/jffs/scripts/update-notification'
+			F_terminal_check_ok "Created update-notification in /jffs/scripts/"
+			if echo '#!/bin/sh' >> /jffs/scripts/update-notification ; then
+				if echo "(sh $script_name_full fwupdate) & wicenspid=\$!  # added by wicens $(/bin/date +"%c")" >> /jffs/scripts/update-notification ; then
+					echo "logger -t \"[\$\$]update-notification\" \"Started wicens with pid \$wicenspid\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/update-notification'
+					chmod a+rx '/jffs/scripts/update-notification'
+					F_terminal_check_ok "ADDED entry for wicens fwupdate in /jffs/scripts/update-notification"
+					F_log "Created update-notification in /jffs/scripts/ and added entry for wicens"
+				else
+					F_log_show "Critical error, failed writing to update-notification"
+					F_clean_exit
+				fi
+			else
+				F_terminal_check_fail "Critical error, failed to add 'shebang' to update-notification"
+				F_log "Critical error, failed to add 'shebang' to update-notification"
+				F_clean_exit
+			fi
+		fi
+		sed -i "1,/user_fw_update_notification=.*/{s/user_fw_update_notification=.*/user_fw_update_notification=0/;}" "$update_src"
+	fi
+	if [ "$1" = 'disable' ] ; then
+		F_terminal_check "Removing wicens entry in update-notification"
+		if [ -f '/jffs/scripts/update-notification' ]; then
+			if grep -q "$script_name_full fwupdate" '/jffs/scripts/update-notification' ; then
+				sed -i "\| $script_name_full |d" '/jffs/scripts/update-notification'
+				sed -i '/Started wicens with pid/d' '/jffs/scripts/update-notification'
+				F_log_terminal_ok "Removed wicens entry in update-notification"
+			else
+				F_terminal_check_ok "No entry found for wicens in /jffs/scripts/update-notification to remove"
+			fi
+			if [ "$(wc -l < /jffs/scripts/update-notification)" -eq 1 ]; then
+				if grep -q "#!/bin/sh" "/jffs/scripts/update-notification"; then
+					F_log_terminal_ok "/jffs/scripts/update-notification appears empty, removing file"
+					rm -f /jffs/scripts/update-notification
+				fi
+			fi
+		else
+			F_terminal_check_ok "/jffs/scripts/update-notification is already removed"
+		fi
+		sed -i "1,/user_fw_update_notification=.*/{s/user_fw_update_notification=.*/user_fw_update_notification=1/;}" "$update_src"
+	fi
+} # fw_updates   v2.50
 
 # STATUS/TERMINAL #################################################################################
 
@@ -2096,9 +2234,9 @@ F_terminal_header() {
 	clear
 	sed -n '2,11p' "$script_name_full"
 	if [ "$build_no" = '384' ] || [ "$build_no" = '386' ] ; then
-		printf "%5s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(/bin/date +%c)" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$device_model" "$tCLR" "$tGRN" "$build_no" "$build_sub" "$build_extend" "$tCLR"
+		printf "%5s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(/bin/date +"%c")" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$device_model" "$tCLR" "$tGRN" "$build_no" "$build_sub" "$build_extend" "$tCLR"
 	else   # v2.40
-		printf "%2s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(/bin/date +%c)" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$device_model" "$tCLR" "$tGRN" "$build_no" "$build_sub" "$build_extend" "$tCLR"
+		printf "%2s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(/bin/date +"%c")" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$device_model" "$tCLR" "$tGRN" "$build_no" "$build_sub" "$build_extend" "$tCLR"
 	fi
 	[ "$test_mode_active" = 'yes' ] && printf "%b %b###  Test Mode - Sending $user_message_count message(s) ### %b\n" "$tTERMHASH" "$tYEL" "$tCLR"
 	F_terminal_separator
@@ -2149,9 +2287,14 @@ F_status() {
 		F_terminal_header_print "Secs to next update check w/run  : " "Ready to check"
 	fi
 	if [ "$user_update_notification" = 0 ] ; then   # v2.20
-		F_terminal_header_print "Script update Email notification : " "Enabled"
+		F_terminal_header_print "Script update Email notify       : " "Enabled"
 	else
-		printf "%b Script update Email notification : " "$tTERMHASH" ; printf "%b Disabled%b\n" "$tRED" "$tCLR"
+		printf "%b Script update Email notify       : " "$tTERMHASH" ; printf "%b Disabled%b\n" "$tRED" "$tCLR"
+	fi
+	if [ "$user_fw_update_notification" = 0 ] ; then   # v2.50
+		F_terminal_header_print "Firmware update Email notify     : " "Enabled"
+	else
+		printf "%b Firmware update Email notify     : " "$tTERMHASH" ; printf "%b Disabled%b\n" "$tRED" "$tCLR"
 	fi
 	F_terminal_show '---------------------------------------------------------------------'
 	if [ "$1" = 'view' ] ; then
@@ -2195,13 +2338,23 @@ F_main_menu() {
 		printf '%s\n' "$fail_reason"
 		printf "%b Enable autorun/manual check--: m%b     Not Ready%b\n" "$tTERMHASH" "$tRED" "$tCLR"
 		printf "%b Create/edit settings---------: 1%b     Missing/incomplete settings %b\n" "$tTERMHASH" "$tRED" "$tCLR"
-		[ -f "$script_backup_file" ] && printf "%b Found backup config file-----:       %bExists%b - opt b to restore \n" "$tTERMHASH" "$tGRN" "$tCLR"
+		[ -f "$script_backup_file" ] && printf "%b Found backup config file-----: b     %bExists%b - opt b to restore \n" "$tTERMHASH" "$tGRN" "$tCLR"
 	fi
 	printf "%b Custom Email msg text--------: 2" "$tTERMHASH" ;[ -n "$user_custom_text" ] && printf "%b     Exists%b\n" "$tGRN" "$tCLR" || printf "%b     Unused%b\n" "$tPUR" "$tCLR"
 	printf "%b Custom Email msg subject-----: 3" "$tTERMHASH" ;[ -n "$user_custom_subject" ] && printf "%b     Exists%b\n" "$tGRN" "$tCLR" || printf "%b     Unused%b\n" "$tPUR" "$tCLR"
 	printf "%b Custom script execution------: s" "$tTERMHASH" ;[ -n "$user_custom_script" ] && printf "%b     Exists%b   -   Action:%b %s%b \n" "$tGRN" "$tCLR" "$tGRN" "$user_script_call_time" "$tCLR" || printf "%b     Unused%b\n" "$tPUR" "$tCLR"
-	printf "%b Email update notifcations----: n" "$tTERMHASH"	# v2.10
+	printf "%b Email script updates---------: n" "$tTERMHASH"	# v2.10
 	[ "$user_update_notification" = 0 ] && printf "%b     Enabled%b\n" "$tGRN" "$tCLR" || printf "%b     Disabled%b\n" "$tRED" "$tCLR"	# v2.10
+	printf "%b Email firmware updates-------: x" "$tTERMHASH"   # v2.50
+	if F_fw_updates check ; then
+		if [ "$user_fw_update_notification" = 0 ] ; then
+			printf "%b     Enabled%b\n" "$tGRN" "$tCLR"
+		else
+			printf "%b     Disabled%b\n" "$tRED" "$tCLR"
+		fi
+	else
+		printf "%b     Disabled%b\n" "$tRED" "$tCLR"
+	fi
 	F_terminal_separator ;F_terminal_show "Show sample Email------------: 4"
 	F_terminal_show "Send a test Email------------: 5"
 	F_terminal_show "Show Email send log----------: 6"
@@ -2251,6 +2404,7 @@ F_main_menu() {
 				read -rsn1 invalidwait ;return 1
 			fi ;;
 		v|V) F_status view && F_menu_exit ;;
+		x|X) F_opt_fw_notifications ;;   # v2.50
 		*) [ -n "$selection" ] && printf "%b %s is an invalid entry, any key to retry" "$tCHECKFAIL" "$selection" && read -rsn1 invalidwait && return 1 ;;
 	esac
 }   ### main menu
@@ -2263,7 +2417,7 @@ F_lock_create() {
 	{
 	echo "wicens lock file"
 	echo "$$"
-	echo "$(/bin/date +%s)"
+	echo "$(/bin/date +"%s")"
 	echo "Lockfile for $script_name_full to prevent duplication"
 	echo "Created $run_date"
 	echo "Option : $passed_options "
@@ -2292,10 +2446,10 @@ if [ "$(nvram get ntp_ready)" -ne 1 ] ; then
 fi
 [ -f "$ntp_lock" ] && rm -f "$ntp_lock"   # remove ntplock on success after waiting for ntp
 # time set
-TZ=$(cat /etc/TZ)   # v2.41
+TZ="$(cat /etc/TZ)"   # v2.41
 export TZ   # v2.41
-run_date="$(/bin/date +%c)"
-run_epoch="$(/bin/date +%s)"
+run_date="$(/bin/date +"%c")"
+run_epoch="$(/bin/date +"%s")"
 [ -n "$update_auto_check_epoch" ] && update_diff=$((run_epoch - update_auto_check_epoch)) || update_diff="$update_check_period"
 update_rem=$((update_check_period - update_diff))
 
@@ -2307,7 +2461,7 @@ if [ -f "$script_lock" ] ; then
 	process_created="$(sed -n '5p' $script_lock)"   # started on
 	process_calledby="$(sed -n '6p' $script_lock)"  # created by
 	process_time="$(sed -n '3p' $script_lock)"   # started seconds time
-	lock1_diff_time="$(($(/bin/date +%s) - process_time))"
+	lock1_diff_time="$(($(/bin/date +"%s") - process_time))"
 	F_terminal_header
 	F_terminal_show "wicens failed to start"
 	F_terminal_padding
@@ -2339,7 +2493,7 @@ if [ -f "$script_lock" ] ; then
 			loop_count_run=$((loop_count_run - 1))
 		done
 		check_lock_count=$((interval_time_count_1+interval_time_count_2+interval_time_count_3+100))  # add 100secs just incase script happens to be exiting or had start delays reads original wicens.lock start date seconds
-		if [ "$(($(/bin/date +%s) - $(sed -n '4p' $script_mail_lock)))" -gt "$check_lock_count" ] ; then
+		if [ "$(($(/bin/date +"%s") - $(sed -n '4p' $script_mail_lock)))" -gt "$check_lock_count" ] ; then
 			rm -f "$script_mail_lock"
 			printf "%b from %s on %s\n" "$tTERMHASH" "$process_calledby" "$process_created"
 			F_terminal_show "Removed stale wicenssendmail.lock file, any key to continue"
@@ -2401,23 +2555,26 @@ fi # end of wicens.lock and wicenssendmail.lock
 [ ! -f "$update_src" ] && F_default_update > "$update_src" && chmod 0644 "$update_src" && source "$update_src"   # v2.30hf1
 [ ! -f "$config_src" ] && F_default > "$config_src" && chmod 0644 "$config_src" && source "$config_src"
 
-# update integrity check   v2.30 update_settings_ver=2.0
-if [ "$update_settings_version" != '2.0' ] || [ -z "$update_settings_version" ] ; then
+# update integrity check   v2.30 update_settings_ver=2.1(v2.50)
+if [ "$update_settings_version" != '2.1' ] ; then
 	rm -f "$update_src"
 	F_default_update > "$update_src"
 	if [ "$user_update_notification" = 0 ] ; then
 		# current user_update_notification should be loaded if enabled overwrite on new file
 		sed -i "1,/user_update_notification=.*/{s/user_update_notification=.*/user_update_notification=0/;}" "$update_src"
 	fi
+	if [ "$user_fw_update_notification" = 0 ] ; then   # v2.50 for future
+		sed -i "1,/user_fw_update_notification=.*/{s/user_fw_update_notification=.*/user_fw_update_notification=0/;}" "$update_src"
+	fi
 	source "$update_src"
 fi
 
-# test settings valid and set var for script to use  v2.40 
+# test settings valid and set var for script to use  v2.40
 F_settings_test
 
 # check args start run create locks
 case $passed_options in
-	'cron'|'wancall'|'test') F_lock_create ;;   # create lock and fall through to auto run
+	'cron'|'wancall'|'test'|'fwupdate') F_lock_create ;;   # create lock and fall through to auto run   v2.50 added fwupdate
 	'remove') F_opt_remove ;;   # manually remove lock files
 	'manual') F_lock_create ; from_menu='no' ; until F_main_menu ; do : ; done ;;   # run from command line, from_menu prevents until loop recheck for update
 	*) printf "\n%b wicens.sh %b is an invalid option\n\n" "$tTERMHASH" "$tRED$passed_options$tCLR" && exit 0 ;;
@@ -2439,29 +2596,39 @@ elif [ "$passed_options" = 'cron' ]; then
 	sed -i "1,/last_cron_run=.*/{s/last_cron_run=.*/last_cron_run='$run_date'/;}" "$config_src"
 	# below is all Sunday logging
 	weekly_wancall_total=$((wancall_run_count - last_wancall_log_count))   # log msg count
-	if [ "$(/bin/date +%u)" = '7' ] && [ "$log_cron_msg" = '0' ] ; then
+	if [ "$(/bin/date +"%u")" = '7' ] && [ "$log_cron_msg" = '0' ] ; then
 		F_log "Started successfully by wan-event connected $weekly_wancall_total times in the last week, $wancall_run_count times since install"
 		[ -n "$last_Wancall_run" ] && F_log "Last wan-event connected trigger $last_wancall_run"
 		F_log "Recorded $ip_change_count IP change(s) since install"
 		sed -i "1,/last_wancall_log_count=.*/{s/last_wancall_log_count=.*/last_wancall_log_count=$wancall_run_count/;}" "$config_src"
 		sed -i "1,/log_cron_msg=.*/{s/log_cron_msg=.*/log_cron_msg=1/;}" "$config_src"  # set to not log every cron
 	fi
-	if [ "$(/bin/date +%u)" = '1' ] && [ "$log_cron_msg" = '1' ] ; then
+	if [ "$(/bin/date +"%u")" = '1' ] && [ "$log_cron_msg" = '1' ] ; then
 		sed -i "1,/log_cron_msg=.*/{s/log_cron_msg=.*/log_cron_msg=0/;}" "$config_src"  # monday reset to log again sunday
 	fi
 	# end of Sunday logging
 	# update check	# v2.10
 	update_cron_diff=$((run_epoch - update_cron_epoch))
 	if [ "$update_cron_diff" -gt "$update_period" ] && [ "$user_update_notification" = '0' ] ; then   # check for webupdate every 4hrs
+		# v2.50 randomize sleep time to stagger freak potential multiple users requesting gitinfo at same cron time (good internet neighbor)
+		F_random_sleep() {
+			awk -v min=1 -v max="30" 'BEGIN{srand(); print int(min+rand()*(max-min+1))}'   # less than 5 mins to keep lock happy
+		}
+		sleep "$(F_random_sleep)"
 		F_web_update_check cron
-		sed -i "1,/update_cron_epoch=.*/{s/update_cron_epoch=.*/update_cron_epoch='$(/bin/date +%s)'/;}" "$update_src"
+		sed -i "1,/update_cron_epoch=.*/{s/update_cron_epoch=.*/update_cron_epoch='$(/bin/date +"%s")'/;}" "$update_src"
 	fi
 	# update notification	# v2.10
-	if [ "$update_auto_check_avail" != 'none' ] && [ "$update_notification_sent" = '0' ] && [ "$user_update_notification" = '0' ] ; then   # no notification yet sent for update
+	if [ "$update_auto_check_avail" != 'none' ] && [ "$update_notify_state" = '0' ] && [ "$user_update_notification" = '0' ] ; then   # no notification yet sent for update
 		F_log "Update available for wicens script, run manually to update"   # v2.20 moved from F_update_mail_notify
 		F_log "Sending update notification Email"   # v2.20
 		F_update_mail_notify
 	fi
+	# fw update notification   # v2.50
+	if [ "$update_fw_notify_state" = '1' ] ; then   # fw_update_notify failed sending msg try again
+		F_fw_update_notify
+	fi
+
 	if ! F_do_compare ; then
 		F_send_mail
 	fi
@@ -2473,6 +2640,14 @@ elif [ "$passed_options" = 'wancall' ] ; then
 	sleep 30
 	if ! F_do_compare ; then
 		F_send_mail
+	fi
+elif [ "$passed_options" = 'fwupdate' ] ; then   # v2.50  called by update-notification event
+	if [ "$user_fw_update_notification" = '0' ] ; then   # user optd into fw notfications
+		F_log_show "Started by update-notification trigger, sending firmware update notification"
+		# set 1 at start of attempt set to 0 by F_fw_update_notify msg success and checked by cron
+		sed -i "1,/update_fw_notify_state=.*/{s/update_fw_notify_state=.*/update_fw_notify_state=1/;}" "$update_src"
+		F_fw_update_notify
+		F_clean_exit
 	fi
 fi
 # END
