@@ -5,7 +5,7 @@ Nov 6 2021
 * ADDED : firmware update notifications for 384/386 branch
 * ADDED : random sleep period 0-30secs for cron update checks to github (good internet neighbor)
 * CHANGED : wan-event/service-start/update-notification entries append time/date and logging added
-* CHANGED : some script formatting/var names  moved settings fail message to option v
+* CHANGED : some script formatting/var names
 ## 2.41
 Nov 4 2021
 * FIXED: timezone DST adjustment with cron
