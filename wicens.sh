@@ -20,7 +20,7 @@
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 # START ###########################################################################################
 script_version='2.50'
-script_ver_date='November 6 2021'
+script_ver_date='November 7 2021'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
@@ -404,7 +404,7 @@ F_opt_error() {
 F_opt_fw_notifications() {
 	if F_ready_check ; then
 		if [ "$user_fw_update_notification" = 1 ] ; then
-			if [ "$buildno" = '374' ] ; then
+			if [ "$build_no" = '374' ] ; then
 				F_terminal_show "Sorry, this version of firmware is not compatible"
 				F_menu_exit
 			fi
