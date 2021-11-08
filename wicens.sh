@@ -696,11 +696,12 @@ F_opt_uninstall() {
 	F_terminal_header ; F_terminal_warning ; F_terminal_show "This will remove the wicens script ENTIRELY from your system"
 	F_terminal_show "And any backup configs" ; F_terminal_padding
 	while true; do
-		F_terminal_check "Are you sure you wish to uninstall? Type YES - or n to exit"
-		read -rsn1 uninstall_wait
+		F_terminal_show "Are you sure you wish to uninstall? Type YES - or n or e to exit"
+		F_terminal_padding ; F_terminal_check "Entry : "
+		read -r uninstall_wait
 		case $uninstall_wait in
 			'YES') F_terminal_check_ok "Uninstalling" ; F_terminal_padding ; F_uninstall_do ;;
-			n|N) F_terminal_check_ok "No received, exiting..." ; F_menu_exit ;;
+			n|N|e|E) F_terminal_check_ok "No received, exiting..." ; F_menu_exit ;;
 			*) F_fail_entry ;;
 		esac
 		break
