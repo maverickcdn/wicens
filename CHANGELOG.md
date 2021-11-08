@@ -6,6 +6,7 @@ Nov 6 2021
 * ADDED : random sleep period 0-30secs for cron update checks to github (good internet neighbor)
 * CHANGED : wan-event/service-start/update-notification entries append time/date and logging added
 * CHANGED : some script formatting/var names
+* HF : fix uninstall yes or no
 ## 2.41
 Nov 4 2021
 * FIXED: timezone DST adjustment with cron
