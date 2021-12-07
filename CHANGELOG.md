@@ -1,5 +1,12 @@
 # wicens change log
 -----------------
+## 2.60
+December 7 2021
+* CHANGED : main menu layout/settings error msg
+* FIXED : pid of calls in events
+* MOVED : settings fail to view opt v, fixed update time
+* ADDED : backup delete opt
+* CHANGED : file creation function calling
 ## 2.50
 Nov 6 2021
 * ADDED : firmware update notifications for 384/386 branch
