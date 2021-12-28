@@ -1,5 +1,11 @@
 # wicens change log
 -----------------
+## 2.65
+December 28 2021
+* FIXED: formatting of log output for script call
+* REMOVED: auto update check on manual run
+* CHANGED: update check to daily regardless if notify enabled (use f to force update check)
+* CHANGED: some var names
 ## 2.60
 December 7 2021
 * CHANGED : main menu layout/settings error msg
