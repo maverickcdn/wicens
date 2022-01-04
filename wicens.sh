@@ -19,8 +19,8 @@
 # modified firmware checks to allow LTS Fork by john9527 March 2021 (special thanks to john9527 @ snbforums for adding compatibility for getrealip.sh)
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 # START ###########################################################################################
-script_version='2.65'
-script_ver_date='December 28 2021'
+script_version='2.66'
+script_ver_date='January 4 2022'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
@@ -1150,7 +1150,7 @@ log_cron_msg=0
 F_default_update_create() {
 	echo "#!/bin/sh
 # wicens update conf file
-update_settings_version='2.2'
+update_settings_version='2.3'
 ###########################################################
 update_avail='none'
 update_notify_state=0
@@ -1164,6 +1164,7 @@ update_fw_notify_state=0
 } # v2.10/2.20/2.30/2.50 updated  update integrity check if updating version
 # 2.1 added update_fw_notify_state set to 1 by update-notification till email success, user_fw_update_notification, rename update_notify
 # 2.2 removed auto_check_epoch update_period=1day
+# 2.3 used to update autorun entries wan-event/serv-start/cron
 F_build_settings() {
 	building_settings='yes'   # for opt_sample no exit, move to test option
 	until F_send_to_addr ; do : ; done
@@ -1566,7 +1567,7 @@ F_wan_event() {
 			F_terminal_check_ok "Created wan-event in /jffs/scripts/"
 			if echo '#!/bin/sh' >> /jffs/scripts/wan-event ; then
 				if echo "[ \"\$2\" = \"connected\" ] && (sh $script_name_full wancall) & wicenspid=\$!   # added by wicens $(/bin/date +"%c")" >> /jffs/scripts/wan-event ; then
-					echo "logger -t \"wan-event[\$\$]\" \"Started wicens with pid \$wicenspid\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/wan-event'
+					echo "[ \"\$2\" = \"connected\" ] && logger -t \"wan-event[\$\$]\" \"Started wicens with pid \$wicenspid\"   # added by wicens $(/bin/date +"%c")" >> '/jffs/scripts/wan-event'
 					chmod a+rx '/jffs/scripts/wan-event'
 					F_terminal_check_ok "ADDED connected event entry for wicens wancall in /jffs/scripts/wan-event"
 					F_log "Created wan-event in /jffs/scripts/ and added connected event entry for wicens"
@@ -2571,8 +2572,8 @@ fi # end of wicens.lock and wicenssendmail.lock
 [ ! -f "$update_src" ] && F_default_update_create && chmod 0644 "$update_src" && source "$update_src"   # v2.30hf1
 [ ! -f "$config_src" ] && F_default_create && chmod 0644 "$config_src" && source "$config_src"
 
-# update integrity check   v2.30 update_settings_ver=2.1(v2.50) 2.2=(v2.65)
-if [ "$update_settings_version" != '2.2' ] ; then
+# update integrity check   v2.30 update_settings_ver=2.1(v2.50) 2.2=(v2.65) 2.3=(v2.66)
+if [ "$update_settings_version" != '2.3' ] ; then
 	rm -f "$update_src"
 	F_default_update_create
 	if [ "$user_update_notification" = 0 ] ; then
@@ -2583,6 +2584,12 @@ if [ "$update_settings_version" != '2.2' ] ; then
 		sed -i "1,/user_fw_update_notification=.*/{s/user_fw_update_notification=.*/user_fw_update_notification=0/;}" "$update_src"
 	fi
 	source "$update_src"
+	F_log "Updated wicens update_settings file"
+	if F_auto_run_check check ; then   # v2.66 if enabled reset if any changes to wan-event/services-start/cru
+		F_disable_autorun > /dev/null 2>&1   # remove entries
+		F_auto_run_check > /dev/null 2>&1   # readd updated entries
+		F_log "Updated wan-event/services-start/cru entries"
+	fi
 fi
 
 # test settings valid and set var for script to use  v2.40
