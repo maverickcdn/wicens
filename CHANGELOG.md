@@ -1,5 +1,9 @@
 # wicens change log
 -----------------
+## 2.66
+January 4 2022
+* FIXED: wan-event logger call syntax missing
+* ADDED: update logging
 ## 2.65
 December 28 2021
 * FIXED: formatting of log output for script call
