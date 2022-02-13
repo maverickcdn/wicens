@@ -1692,9 +1692,9 @@ F_nvram_wan_ip_get() {
 		until F_internet_check ; do : ; done   # monitors/runs F_google_ping (attempts 5mins/30s interval)
 		F_current_wan_ip_get
 	elif echo "$current_wan_ip" | F_private_ip ; then
-		printf "\r%b WAN IP %s is a private IP, something is wrong" "$tERASE$tCHECKFAIL" "$current_wan_ip"
-		F_log "Error - WAN IP $current_wan_ip is a private IP, something is wrong"
-		F_clean_exit
+		printf "\r%b WAN IP %s is a private IP, attempting to get external IP" "$tERASE$tCHECKFAIL" "$current_wan_ip"
+		F_log "Error - WAN IP $current_wan_ip is a private IP, attempting to get external IP"
+		F_current_wan_ip_get
 	fi
 	if [ "$current_wan_ip" = "$saved_wan_ip" ] ; then
 		return 0
