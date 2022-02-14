@@ -1,5 +1,10 @@
 # wicens change log
 -----------------
+## 2.70
+February 13 2022
+* CHANGED: private ip in nvram assumes double-nat forces getrealip.sh
+* ADDED: random sleep on cron for double-nat to google stun
+* MOVED: F_random_sleep to main script and rename
 ## 2.66
 January 4 2022
 * FIXED: wan-event logger call syntax missing
