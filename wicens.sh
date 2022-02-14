@@ -19,8 +19,8 @@
 # modified firmware checks to allow LTS Fork by john9527 March 2021 (special thanks to john9527 @ snbforums for adding compatibility for getrealip.sh)
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 # START ###########################################################################################
-script_version='2.66'
-script_ver_date='January 4 2022'
+script_version='2.70'
+script_ver_date='February 13 2022'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
@@ -1653,6 +1653,10 @@ F_disable_autorun() {
 
 # CORE ############################################################################################
 
+F_random_num() {
+	awk -v min=1 -v max="30" 'BEGIN{srand(); print int(min+rand()*(max-min+1))}'   # less than 5 mins to keep lock happy
+}    # v2.70 moved out of function
+
 F_script_wan_update() {
 	[ "$ip_match" = 'no' ] && sed -i "1,/last_ip_change=.*/{s/last_ip_change=.*/last_ip_change='$run_date'/;}" "$config_src" # only write on change
 	[ "$building_settings" = 'yes' ] && F_terminal_check_ok "IP successfully retrieved"
@@ -1692,9 +1696,10 @@ F_nvram_wan_ip_get() {
 		until F_internet_check ; do : ; done   # monitors/runs F_google_ping (attempts 5mins/30s interval)
 		F_current_wan_ip_get
 	elif echo "$current_wan_ip" | F_private_ip ; then
-		printf "\r%b WAN IP %s is a private IP, something is wrong" "$tERASE$tCHECKFAIL" "$current_wan_ip"
-		F_log "Error - WAN IP $current_wan_ip is a private IP, something is wrong"
-		F_clean_exit
+		printf "\r%b WAN IP %s is a private IP, attempting update with getrealip.sh" "$tERASE$tCHECKFAIL" "$current_wan_ip"  # v2.70 
+		# F_log "Error - WAN IP $current_wan_ip is a private IP, something is wrong"
+		# F_clean_exit   v2.70
+		F_current_wan_ip_get   # v2.70   @maghuro pr
 	fi
 	if [ "$current_wan_ip" = "$saved_wan_ip" ] ; then
 		return 0
@@ -1714,6 +1719,7 @@ F_current_wan_ip_get() {
 		getrealip_call_count=$((getrealip_call_count - 1))
 	} # getrealip
 
+	[ "$passed_options" = 'cron' ] && sleep $(F_random_num)   # v2.70
 	while [ "$getrealip_call_count" != '0' ]; do   #  check for WAN IP 3 times
 		F_terminal_check "Retrieving WAN IP using getrealip.sh"
 
@@ -2634,10 +2640,7 @@ elif [ "$passed_options" = 'cron' ]; then
 	update_cron_diff=$((run_epoch - update_cron_epoch))
 	if [ "$update_cron_diff" -gt "$update_period" ] ; then   # check for webupdate every v2.65  24hours removed user_notification set
 		# v2.50 randomize sleep time to stagger freak potential multiple users requesting gitinfo at same cron time (good internet neighbor)
-		F_random_sleep() {
-			awk -v min=1 -v max="30" 'BEGIN{srand(); print int(min+rand()*(max-min+1))}'   # less than 5 mins to keep lock happy
-		}
-		sleep "$(F_random_sleep)"
+		sleep "$(F_random_num)"
 		F_web_update_check cron
 		sed -i "1,/update_cron_epoch=.*/{s/update_cron_epoch=.*/update_cron_epoch=$(/bin/date +"%s")/;}" "$update_src"
 	fi
