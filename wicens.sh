@@ -412,7 +412,7 @@ F_opt_error() {
 F_opt_fw_notifications() {
 	if F_ready_check ; then
 		if [ "$user_fw_update_notification" = 1 ] ; then
-			if [ "$buildno" = '374' ] ; then
+			if [ "$build_no" = '374' ] ; then
 				F_terminal_show "Sorry, this version of firmware is not compatible"
 				F_menu_exit
 			fi
