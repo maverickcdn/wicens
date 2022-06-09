@@ -1,5 +1,11 @@
 # wicens change log
 -----------------
+## 2.80
+June 8 2022
+* ADDED: Historcal WAN IP changes written to Email message 
+* CHANGED: write all possible nvram settings to config to avoid NVRAM lookup hangs 
+* CHANGED(important): User backup moved to /jffs/addons/wicens/wicens_user_config.backup (cleaner)
+* CHANGED: updated documentation for Googles discontinuation of 'less secure apps'
 ## 2.70
 February 13 2022
 * CHANGED: private ip in nvram assumes double-nat forces getrealip.sh
