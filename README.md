@@ -14,9 +14,8 @@ curl     - SSL (eg GMail port 465)
 sendmail - SMTP plain auth (no encryption)
 sendmail - ISP based (no password reqd, generally port 25)
 
-IMPORTANT - If using GMail, you must enable 'insecure app' access to your
-GMail account. If you use 2factor authentication you must setup an assigned
-password in GMail for this script to use.
+IMPORTANT - If using GMail, you must use 2 factor authentication and setup
+an assigned App password in GMail for this script to use.
 
 IMPORTANT - Your Email address(es) are stored as plain text within this
 script.  Your Email password is encrypted and saved to router storage.
