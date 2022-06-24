@@ -1,5 +1,9 @@
 # wicens change log
 -----------------
+## 2.82
+June 24 2022
+* FIXED: broken new installs
+* FIXED: update config when user upgrades router FW
 ## 2.80
 June 8 2022
 * ADDED: Historcal WAN IP changes written to Email message 
