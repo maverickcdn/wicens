@@ -20,8 +20,8 @@
 # SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
 [ "$1" = 'debug' ] && shift && set -x
 # START ###########################################################################################
-script_version='2.80'
-script_ver_date='June 8 2022'
+script_version='2.82'
+script_ver_date='June 24 2022'
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"  # "/jffs/scripts/$(basename $0)"
 script_dir='/jffs/addons/wicens'
@@ -82,8 +82,9 @@ F_log_terminal_fail() { F_terminal_check_fail "$1" ; F_log "$1" ;}
 
 # firmware check ##################################################################################
 F_firmware_check() {
-	build_no="$(nvram get buildno | cut -f1 -d '.')"
-	build_sub="$(nvram get buildno | cut -f2 -d '.')"
+	build_full="$(nvram get buildno)"
+	build_no="$(echo "$build_full" | cut -f1 -d '.')"
+	build_sub="$(echo "$build_full" | cut -f2 -d '.')"
 	build_extend="$(nvram get extendno)"
 	pulled_device_name="$(nvram get lan_hostname)"
 	pulled_lan_name="$(nvram get lan_domain)"
@@ -115,14 +116,14 @@ F_firmware_check() {
 		sed -i "1,/fw_build_extend=.*/{s/fw_build_extend=.*/fw_build_extend='$build_extend'/;}" "$update_src"
 		source "$update_src"
 		source "$config_src"
-		F_log "core config version $update_settings_version created"
+		if [ "$1" = 'fwupdate' ] ; then   # v2.81
+			F_log_show "core config version $update_settings_version updated for new router fw version"
+			sleep 1
+		else
+			F_log "core config version $update_settings_version created"
+		fi
 	fi
 }
-
-# first run no config exists
-if [ -z "$fw_build_no" ] || [ -z "$fw_build_sub" ] ; then   # v2.80 only check fw ver at first launch, write to config
-	F_firmware_check
-fi
 
 # alias ###########################################################################################
 if [ ! -f '/jffs/configs/profile.add' ] ; then
@@ -2502,6 +2503,9 @@ F_main_menu() {
 ###################################################################################################
 ################### Start - check ntp/time set/lock check/options check/lock create ###############
 ###################################################################################################
+# first run no config exists
+if [ -z "$fw_build_no" ] || [ -z "$fw_build_sub" ] ; then F_firmware_check ; fi   # v2.80 only check fw ver at first launch, write to config   v2.82 moved 
+
 F_lock_create() {
 	touch "$script_lock"
 	{
@@ -2640,6 +2644,25 @@ if [ -f "$script_lock" ] ; then
 	fi
 fi # end of wicens.lock and wicenssendmail.lock
 # locks dont exist/removed continue below
+
+# update config if user upgrades firmware
+if [ "$passed_options" = 'manual' ] ; then   # v2.81   v2.82 moved
+	build_full="$(nvram get buildno)"
+	build_no="$(echo "$build_full" | cut -f1 -d '.')"
+	build_sub="$(echo "$build_full" | cut -f2 -d '.')"
+	build_extend="$(nvram get extendno)"
+
+	if [ "$fw_build_no" = '386' ] || [ "$fw_build_no" = '384' ] ; then
+		if [ "$build_no" -gt "$fw_build_no" ] || [ "$build_sub" -gt "$fw_build_sub" ] || [ "$build_extend" -gt "$fw_build_extend" ] ; then
+			F_firmware_check fwupdate
+		fi
+	elif [ "$fw_build_no" = '374' ] ; then
+		johnsub="${build_extend:0:2}"
+		if [ "$johnsub" -gt "$fw_build_sub" ] ; then
+			F_firmware_check fwupdate
+		fi
+	fi
+fi
 
 # update integrity check   v2.40 update_settings_ver=2.1(v2.50) 2.2=(v2.65) 2.3=(v2.66) 2.4=(v2.80)
 if [ "$update_settings_version" != '2.4' ] ; then
