@@ -1,5 +1,12 @@
 # wicens change log
 -----------------
+## 2.85
+June 26 2022
+* FIXED: revert change to F_fail_entry (broken y or n outside selection)
+* CHANGED: cannot enable script notifications unless WAN IP notify enabled (relies on cron)
+* CHANGED: wan history in Email most recent to oldest and formatted
+* ADDED: ability to exit any step in setup by entering e 
+* MISC: script cleanup and optimizations (var change function)
 ## 2.82
 June 24 2022
 * FIXED: broken new installs
