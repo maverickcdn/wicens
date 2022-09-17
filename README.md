@@ -1,5 +1,5 @@
 # wicens.sh
-WICENS - WAN IP Change Email Notification Script
+    WICENS - WAN IP Change Email Notification Script.
 
 This script when configured will send an Email (1-4) at variable intervals
 X(second/minute/hour/day) to your Email(s) notifying you when your WAN IP
@@ -80,5 +80,13 @@ script has successfully updated. Script will be put in background as to not
 block this script
 
 Every Sunday the script will log the number of calls from wan-event.
+
+To download, copy/paste in an ssh terminal
+
+`curl --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/wicens.sh" -o "/jffs/scripts/wicens.sh" && chmod a+rx "/jffs/scripts/wicens.sh"`
+
+Run with 'sh /jffs/scripts/wicens.sh'
+
+After first run, you should be able to run by simply typing wicens
 
 Thank you for using this script.
