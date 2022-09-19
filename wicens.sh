@@ -63,7 +63,7 @@ passed_options="$1"
 F_replace_var() { /bin/sed -i "1,/${1}=.*/{s/${1}=.*/${1}=\'${2}\'/;}" "$3" ;}   # 1=var to change 2=new var string 3=file
 F_chmod() { /bin/chmod a+rx "$1" ;}
 F_crlf() { if grep -q $'\x0D' "$1" 2>/dev/null ; then /usr/bin/dos2unix "$1" ; fi ;}   # crlf
-F_nvram_get() { /bin/nvram get "$1" ;}
+F_nvram_get() { $(which nvram) get "$1" ;}
 F_date() {
 	if [ "$1" = 'sec' ] ; then
 		/bin/date +'%s'
