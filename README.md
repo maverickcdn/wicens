@@ -90,3 +90,5 @@ Run with 'sh /jffs/scripts/wicens.sh'
 After first run, you should be able to run by simply typing wicens
 
 Thank you for using this script.
+
+SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/
