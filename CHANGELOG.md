@@ -1,5 +1,11 @@
 # wicens change log
 -----------------
+## 3.10
+Oct 27 2022
+* ADDED: AMTM Email config sync, will sync wicens with config in AMTM if enabled, if updating from =< 3.0 must manually enable
+* FIXED: couple misdirected var changes in AMTM import, missing AMTM pswd will fail check
+* CHANGED: removed plaintext encrypt/decrypt methods
+* CHANGED: removed hard coded built-in command paths
 ## 3.00
 Sept 16 2022
 * ADDED: router uptime to Email notification
