@@ -20,10 +20,10 @@
 [ "$1" = 'debug' ] && shift && set -x
 
 # START ###############################################################################################################
-script_version='3.00'
-script_ver_date='Sept 16 2022'
+script_version='3.10'
+script_ver_date='Oct 27 2022'
 current_core_config='3.0'   # version of core(update) config (F_default_update_create)
-current_user_config='3.0'   # version of user config (F_default_create)
+current_user_config='3.1'   # version of user config (F_default_create)
 
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"
@@ -51,6 +51,9 @@ cred_loc="${script_dir}/.wicens_cred.enc"
 cred_loc_bak="${cred_loc}bak"
 amtm_email_conf='/jffs/addons/amtm/mail/email.conf'
 amtm_cred_loc='/jffs/addons/amtm/mail/emailpw.enc'
+amtm_d='L3Vzci9zYmluL29wZW5zc2wgMj4vZGV2L251bGwgYWVzLTI1Ni1jYmMgLXBia2RmMiAtZCAtaW4gL2pmZnMvYWRkb25zL2FtdG0vbWFpbC9lbWFpbHB3LmVuYyAtcGFzcyBwYXNzOmRpdGJhYm90LGlzb2kK'
+user_e='L3Vzci9zYmluL29wZW5zc2wgZW5jIC1tZCBzaGE1MTIgLXBia2RmMiAtYWVzLTI1Ni1jYmMgLWEgLXNhbHQgLXBhc3MgcGFzczoiJChGX252cmFtX2dldCBib2FyZG51bSB8IC9iaW4vc2VkIHMvOi8vZykiIHwgdHIgLWQgIlxuIgo='
+user_d='L3Vzci9zYmluL29wZW5zc2wgZW5jIC1tZCBzaGE1MTIgLXBia2RmMiAtYWVzLTI1Ni1jYmMgLWQgLWEgLXBhc3MgcGFzczoiJChGX252cmFtX2dldCBib2FyZG51bSB8IC9iaW4vc2VkIHMvOi8vZykiCg=='
 
 # script misc #########################################################################################################
 F_ctrlc_clean() { printf '\n\n%b Script interrupted...\n' "$tTERMHASH" ; F_clean_exit ;}   # CTRL+C catch with trap
@@ -60,10 +63,10 @@ current_wan_ip=''
 passed_options="$1"
 [ "$1" = '' ] && passed_options='manual'   # used to show manual vs cron/test/wancall/fwupdate/send run
 
-F_replace_var() { /bin/sed -i "1,/${1}=.*/{s/${1}=.*/${1}=\'${2}\'/;}" "$3" ;}   # 1=var to change 2=new var string 3=file
-F_chmod() { /bin/chmod a+rx "$1" ;}
-F_crlf() { if grep -q $'\x0D' "$1" 2>/dev/null ; then /usr/bin/dos2unix "$1" ; fi ;}   # crlf
-F_nvram_get() { $(which nvram) get "$1" ;}
+F_replace_var() { sed -i "1,/${1}=.*/{s/${1}=.*/${1}=\'${2}\'/;}" "$3" ;}   # 1=var to change 2=new var string 3=file
+F_chmod() { chmod a+rx "$1" ;}
+F_crlf() { if grep -q $'\x0D' "$1" 2>/dev/null ; then dos2unix "$1" ; fi ;}   # crlf
+F_nvram_get() { nvram get "$1" ;}
 F_date() {
 	if [ "$1" = 'sec' ] ; then
 		/bin/date +'%s'
@@ -115,6 +118,20 @@ F_confirm() {
 		break
 	done
 } ### confirm
+
+F_menu_wait() {
+			wait_time="$1"
+			while [ "$wait_time" != '0' ] ; do
+				printf "%b Loading menu in %s secs... any key to skip " "$tCHECK" "$wait_time"
+				wait_time=$((wait_time - 1))
+				waiting=zzz
+				read -rsn1 -t1 waiting
+				if [ ${#waiting} -le 1 ] ; then
+					break
+				fi
+				printf '\r%b' "$tERASE"
+			done
+} ### menu_wait
 
 # vars from user config below #########################################################################################
 F_user_settings() {
@@ -257,11 +274,11 @@ F_opt_about() {
 
 	printf "Sendmail/Curl output for Emails is saved to /tmp/wicenssendmail.log for    \n"
 	printf "debugging if needed.  This file can be viewed by running this script and   \n"
-	printf "select option L|l \n\n"
+	printf "select option L||l \n\n"
 
 	printf "Sendmail doesnt always return an error code on a misconfiguration so false \n"
 	printf "send success can occur.  If script says Email has sent but no Email received\n"
-	printf "use option L|l from the Main Menu to read sendmail output for errors\n\n"
+	printf "use option L||l from the Main Menu to read sendmail output for errors\n\n"
 
 	printf "The script does not update its saved WAN IP until the script has completed \n"
 	printf "sending all notifications and adds to the Email message of success or      \n"
@@ -276,6 +293,8 @@ F_opt_about() {
 	printf "Every Sunday the script will log the number of calls from wan-event.     \n\n"
 
 	printf "Thank you for using this script. \n\n"
+	
+	printf "SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/ \n\n"
 	} | more
 	F_menu_exit
 } ### about
@@ -287,7 +306,13 @@ F_opt_amtm() {
 				pull_var="$(grep "$var_set_check" $amtm_email_conf | cut -d"=" -f2 | tr -d '"')"
 				[ -z "$pull_var" ] && return 1
 			done
-			return 0
+
+			# ensure pswd file exists
+			if [ -f "$amtm_cred_loc" ] ; then
+				return 0
+			else
+				return 1
+			fi
 		else
 			return 1
 		fi
@@ -295,8 +320,14 @@ F_opt_amtm() {
 	elif [ "$1" = 'import' ] ; then
 		building_settings='yes'
 		F_terminal_header ; F_terminal_padding
+		if [ "$2" = 'update' ] ; then
+			F_terminal_header
+			F_log_show "Detected updated AMTM config, updating wicens"
+		fi
+
 		source "$amtm_email_conf"
 
+		# write AMTM config to wicens
 		F_replace_var user_from_addr "$USERNAME" "$config_src"
 		F_terminal_check_ok "Imported send from/login address - $USERNAME"
 		F_sleep
@@ -312,47 +343,93 @@ F_opt_amtm() {
 		F_replace_var user_message_type "smtp_ssl" "$config_src"
 		F_terminal_check_ok "Set server type to SSL req'd"
 		F_sleep
-		F_replace_var user_message_count "1" "$config_src"
-		F_terminal_check_ok "Set Email message count to 1 notification"
-		F_sleep
-		F_replace_var protocol "$PROTOCOL" "$update_src"
+		if [ "$2" != 'update' ] ; then   # dont overwrite if updating, user may have changed in wicens menu
+			F_replace_var user_message_count "1" "$config_src"
+			F_terminal_check_ok "Set Email message count to 1 notification"
+			F_sleep
+		fi
+		F_replace_var protocol "$PROTOCOL" "$config_src"
 		F_terminal_check_ok "Imported server protocol - $PROTOCOL"
 		F_sleep
-		[ -n "$SSL_FLAG" ] && F_replace_var ssl_flag "$SSL_FLAG" "$update_src" && F_terminal_check_ok "Imported SSL flag $SSL_FLAG"
+		if [ -n "$SSL_FLAG" ] ; then
+			F_replace_var ssl_flag "$SSL_FLAG" "$config_src"
+			F_terminal_check_ok "Imported SSL flag $SSL_FLAG"
+		fi
 
-		if [ ! -f "$amtm_cred_loc" ] ; then   # pswd not found warning
+		# pswd not found warning, should never hit this
+		if [ ! -f "$amtm_cred_loc" ] ; then
 			F_terminal_check_fail "Error, missing Email password from AMTM"
 			F_terminal_show "Configure Email login password from wicens menu"
 		else
-			amtm_pswd="$(/usr/sbin/openssl 2>/dev/null aes-256-cbc -pbkdf2 -d -in "$amtm_cred_loc" -pass pass:ditbabot,isoi)"
-			user_pswd_encrypt="$(echo "$amtm_pswd" | /usr/sbin/openssl 2>/dev/null enc -md sha512 -pbkdf2 -aes-256-cbc -a -salt -pass pass:"$(F_nvram_get boardnum | /bin/sed 's/://g')" | tr -d '\n')"
+			amtm_pswd="$(eval "$(echo "$amtm_d" | openssl base64 -d)" )"
+			user_pswd_encrypt="$(echo "$amtm_pswd" | eval "$(echo "$user_e" | openssl base64 -d)" )"
 
-			if [ ${#amtm_pswd} -gt 5 ] && echo "$user_pswd_encrypt" > "$cred_loc" ; then   # try to avoid blank/weak pswds
+			if [ -n "$user_pswd_encrypt" ] ; then
+				echo "$user_pswd_encrypt" > "$cred_loc"
 				F_chmod "$cred_loc"
-				F_terminal_check_ok "Imported password successfully encrypted and saved"
+				F_log_terminal_ok "Imported password successfully encrypted and saved"
 			else
 				F_log_terminal_fail "Failed decrypting/encrypting saved AMTM password"
 				F_terminal_show "Configure Email login password from wicens menu"
 			fi
+			amtm_pswd=
+			user_pswd_encrypt=
 		fi
 
+		# set imported flag, change script configured date
+		F_replace_var amtm_import 0 "$config_src"
 		F_replace_var created_date "$(F_date full)" "$config_src"
-		F_terminal_check_ok "Import complete"
-
-		[ -z "$saved_wan_ip" ] && F_saved_wan_ip_create
+		F_log_terminal_ok "Import complete"
 		echo "# Imported from AMTM config on $run_date" >> "$config_src"
 
-		F_terminal_check_ok "Enabling WAN IP notifications..."
-		F_auto_run add
+		source "$config_src"
 
-		F_terminal_padding ; F_terminal_check "T||t Send Test Email - E||e Exit - Any key to return to the Main Menu"
+		[ -z "$saved_wan_ip" ] && F_saved_wan_ip_create
 
-		read -rsn1 setupwait
-		case $setupwait in
-			t|T) rm -f "$script_lock" && exec /bin/sh "$script_name_full" test ;;
-			E|e) printf "\r%b" "$tERASE" && F_clean_exit ;;
-			*) F_clean_exit reload ;;
-		esac
+		# below only with new import
+		if [ "$2" != 'update' ] && [ "$passed_options" = 'manual' ] ; then
+			F_terminal_check_ok "Enabling WAN IP notifications..."
+			F_auto_run add
+
+			F_terminal_padding ; F_terminal_check "T||t Send Test Email - E||e Exit - Any key to return to the Main Menu"
+
+			read -rsn1 setupwait
+			case $setupwait in
+				t|T) rm -f "$script_lock" && exec /bin/sh "$script_name_full" test ;;
+				E|e) printf "\r%b" "$tERASE" && F_clean_exit ;;
+				*) F_clean_exit reload ;;
+			esac
+		fi
+
+	elif [ "$1" = 'confirm' ] ; then
+		source "$amtm_email_conf"
+
+		# sync check
+		if [ "$user_from_addr" != "$USERNAME" ] || [ "$user_send_to_addr" != "$TO_ADDRESS" ] || \
+		   [ "$user_from_name" != "$FRIENDLY_ROUTER_NAME" ] || [ "$user_smtp_server" != "${SMTP}:${PORT}" ] || \
+		   [ "$user_message_type" != "smtp_ssl" ] || [ "$protocol" != "$PROTOCOL" ] || \
+		   [ "$ssl_flag" != "$SSL_FLAG" ] ; then
+				F_opt_amtm import update
+				[ "$passed_options" = 'manual' ] && F_menu_wait 10
+		fi
+
+		# sync pswd check
+		amtm_pswd="$(eval "$(echo "$amtm_d" | openssl base64 -d)" )"
+		user_pswd_enc="$(echo "$amtm_pswd" | eval "$(echo "$user_e" | openssl base64 -d)" )"
+		user_pswd="$(eval "$(echo "$user_d" | openssl base64 -d)" < "$cred_loc")"
+
+		if [ "$amtm_pswd" != "$user_pswd" ] ; then
+			F_terminal_header
+			F_log_terminal_ok "Detected new saved password in AMTM, updated wicens with new password"
+			echo "$user_pswd_enc" > "$cred_loc"
+			sync_updated='Y'
+		fi
+
+		amtm_pswd=
+		user_pswd_enc=
+		user_pswd=
+
+		[ "$passed_options" != 'cron' ] || [ "$passed_options" != 'wancall' ] && [ "$sync_updated" = 'Y' ] && F_menu_wait 10
 	fi
 } ### amtm_import
 
@@ -1427,8 +1504,8 @@ F_smtp_pswd() {
 	fi
 
 	# encrypt remove new lines so no sed errors
-	user_pswd_encrypt="$(echo "$password_entry_1" | /usr/sbin/openssl enc -md sha512 -pbkdf2 -aes-256-cbc -a -salt -pass pass:"$(F_nvram_get boardnum | /bin/sed 's/://g')" | tr -d '\n')"
-	if echo "$user_pswd_encrypt" > "$cred_loc" ; then
+	user_pswd_enc="$(echo "$password_entry_1" | eval "$(echo "$user_e" | openssl base64 -d)" )"
+	if echo "$user_pswd_enc" > "$cred_loc" ; then
 		F_chmod "$cred_loc"
 		F_terminal_check_ok "Password successfully encrypted and saved"
 		passwordentry='' ; password_entry_1='' ; password_entry_2='' ; user_pswd_encrypt=''
@@ -1593,6 +1670,7 @@ F_default_create() {
 		echo "log_cron_msg=0"
 		echo "ssl_flag="
 		echo "protocol='smtps'"
+		echo "amtm_import=1"
 		echo "###########################################################"
 		echo "# Created : $(F_date full)"
 	} > "$config_src"
@@ -1688,18 +1766,23 @@ F_edit_settings() {
 	F_terminal_header
 	printf '%b %bWelcome to the WICENS config editor %b \n' "$tTERMHASH" "$tGRN" "$tCLR"
 	F_terminal_padding
-	F_terminal_header_print "Current Email send to address      1: " "$user_send_to_addr"
-	F_terminal_header_print "Current Email send to CC address   2: " "$user_send_to_cc"
-	F_terminal_header_print "Current Email server addr:port     3: " "$user_smtp_server"
-	F_terminal_header_print "Current Email send format type     4: " "$user_message_type"
-	F_terminal_header_print "Current Email send from address    5: " "$user_from_addr"
-	F_terminal_header_print "Current Email message from name    6: " "$user_from_name"
-	F_terminal_header_print "Total # Email notifications set    7: " "$user_message_count"
-	[ "$user_message_type" = "smtp_ssl" ] && F_terminal_header_print "Current curl SSL protocol          8: " "$protocol"
-	[ "$user_message_count" -gt 1 ] 2>/dev/null && F_terminal_header_print "Interval between Email 1/2         9: " "$user_message_interval_1"
-	[ "$user_message_count" -gt 2 ] 2>/dev/null && F_terminal_header_print "Interval between Email 2/3         9: " "$user_message_interval_2"
-	[ "$user_message_count" -gt 3 ] 2>/dev/null && F_terminal_header_print "Interval between Email 3/4         9: " "$user_message_interval_3"
-	F_terminal_padding ; F_terminal_show "Make a selection or E|e to exit" ; F_terminal_padding
+	F_terminal_header_print "Current Email send to address       1: " "$user_send_to_addr"
+	F_terminal_header_print "Current Email send to CC address    2: " "$user_send_to_cc"
+	F_terminal_header_print "Current Email server addr:port      3: " "$user_smtp_server"
+	F_terminal_header_print "Current Email send format type      4: " "$user_message_type"
+	F_terminal_header_print "Current Email send from address     5: " "$user_from_addr"
+	F_terminal_header_print "Current Email message from name     6: " "$user_from_name"
+	F_terminal_header_print "Total # Email notifications set     7: " "$user_message_count"
+	[ "$user_message_type" = "smtp_ssl" ] && F_terminal_header_print "Current curl SSL protocol           8: " "$protocol"
+	[ "$user_message_count" -gt 1 ] 2>/dev/null && F_terminal_header_print "Interval between Email 1/2          9: " "$user_message_interval_1"
+	[ "$user_message_count" -gt 2 ] 2>/dev/null && F_terminal_header_print "Interval between Email 2/3          9: " "$user_message_interval_2"
+	[ "$user_message_count" -gt 3 ] 2>/dev/null && F_terminal_header_print "Interval between Email 3/4          9: " "$user_message_interval_3"
+	if [ "$amtm_import" = 0 ] && [ "$amtm_status" = 'OK' ] ; then
+		F_terminal_header_print "Sync wicens from AMTM Email config  0: " "Enabled"
+	else
+		F_terminal_header_print_d "Sync wicens from AMTM Email config  0: " "Disabled"
+	fi
+	F_terminal_padding ; F_terminal_show "Make a selection or E||e to exit" ; F_terminal_padding
 
 	while true; do
 		F_terminal_check "Selection : "
@@ -1738,6 +1821,44 @@ F_edit_settings() {
 					until F_message_intervals_entry ; do : ; done
 				else
 					F_fail_entry
+				fi
+				;;
+			0) if [ "$amtm_import" = 0 ] ; then
+					F_terminal_warning
+					F_terminal_show "This will disable syncing wicens with your Email config in AMTM"
+					F_terminal_check "Are you sure? Y||y or any key to exit"
+					read -rsn1 disableamtm
+					case $disableamtm in
+						Y|y) F_replace_var amtm_import 1 "$config_src"
+							 amtm_import=1
+							 F_terminal_check_ok "Disabled AMTM Email sync"
+							 F_terminal_check "Any key to return..."
+							 read -rsn1 syncdisablewait
+							;;
+						*) ;;
+					esac
+				else
+					if [ "$amtm_status" = 'OK' ] ; then
+						F_terminal_warning
+						F_terminal_show "This will enable syncing wicens with your Email config in AMTM"
+						F_terminal_show "and overwrite any currently saved Email settings"
+						F_terminal_check "Are you sure? Y||y or any key to exit"
+						read -rsn1 enableamtm
+						case $enableamtm in
+							Y|y) F_replace_var amtm_import 0 "$config_src"
+								 amtm_import=0
+								 F_terminal_check_ok "Enabled AMTM Email sync"
+								 F_terminal_check "Any key to start sync..."
+								 read -rsn1 syncenablewait
+								 F_opt_amtm confirm
+								 ;;
+							*) ;;
+						esac
+					else
+						F_terminal_check_fail "AMTM Email config file is invalid, launch AMTM and configure Email"
+						F_terminal_check "Any key to return"
+						read -rsn1 synccantenable
+					fi
 				fi
 				;;
 			e|E) F_clean_exit reload ;;
@@ -1904,7 +2025,7 @@ F_send_message() {
 	touch "$mail_log"
 	echo "Created by PID $$ on $(F_date full), ran by $passed_options" >> "$mail_log"
 
-	[ -f "$cred_loc" ] && user_pswd="$(/usr/sbin/openssl enc -md sha512 -pbkdf2 -aes-256-cbc -d -a -pass pass:"$(F_nvram_get boardnum | /bin/sed 's/://g')" < "$cred_loc")"
+	[ -f "$cred_loc" ] && user_pswd="$(eval "$(echo "$user_d" | openssl base64 -d)" < "$cred_loc")"
 
 	if [ "$user_message_type" = 'smtp_isp_nopswd' ] ; then
 		if F_send_format_isp ; then return 0 ; else return 1 ; fi
@@ -1953,7 +2074,7 @@ F_send_mail() {
 			F_log "CRITICAL ERROR - wicens failed to send Email notification $((loop_run - 1)) of $user_message_count"
 			F_log_show "Are your Email settings in this script correct? and password?"
 			F_log_show "Or maybe your Email host server was temporarily down?"
-			F_log_show "Main Menu - option L|l for errors - P|p to re-enter password"
+			F_log_show "Main Menu - option L||l for errors - P||p to re-enter password"
 			rm -f "$mail_file"
 			F_log_show "Resetting WAN IP to old WAN IP to attempt again in 10 minutes"
 			F_replace_var saved_wan_date "$original_wan_date" "$config_src"
@@ -2788,6 +2909,17 @@ F_fw_updates() {
 F_settings_test() {
 	settings_test='OK'
 	amtm_status='FAIL'
+
+	# amtm check valid
+	if F_opt_amtm check ; then
+		amtm_status='OK'
+
+		# if sync enabled confirm sync
+		if [ "$amtm_import" = 0 ] ; then
+			F_opt_amtm confirm
+		fi
+	fi
+
 	if [ -z "$user_from_addr" ] || [ -z "$user_message_type" ] || [ -z "$user_send_to_addr" ] || [ -z "$user_smtp_server" ] ; then
 		settings_test='FAIL'
 		fail_reason="$(printf "[%bFAIL%b] Missing core settings \n\n" "$tRED" "$tCLR")"
@@ -2842,13 +2974,6 @@ F_settings_test() {
 		F_saved_wan_ip_create
 		F_log_show "Missing WAN IP"
 		F_clean_exit reload
-	fi
-
-	# only check amtm with manual runs
-	if [ "$passed_options" = 'manual' ] || [ "$passed_options" = 'reload' ] ; then
-		if F_opt_amtm check ; then
-			amtm_status='OK'
-		fi
 	fi
 
 	if [ "$settings_test" = 'OK' ] ; then
@@ -2991,6 +3116,12 @@ F_status() {
 
 	[ "$user_update_notification" = '0' ] && [ "$update_avail" = 'none' ] && F_terminal_header_print "Secs to next update check w/cron : " "$update_rem"
 
+	if [ "$amtm_import" = 0 ] && [ "$amtm_status" = 'OK' ] ; then
+		F_terminal_header_print "Sync from AMTM Email config      : " "Enabled"
+	else
+		F_terminal_header_print_d "Sync from AMTM Email config      : " "Disabled"
+	fi
+
 	if F_auto_run checkall && [ "$settings_test" = 'OK' ] ; then
 		F_terminal_header_print "WAN IP change Email notify       : " "Enabled"
 	else
@@ -3012,6 +3143,8 @@ F_status() {
 
 	[ "$update_avail" != 'none' ] && [ "$update_avail" != 'hotfix' ] && F_terminal_header_print "New version is available!        : " "Version $update_avail"
 	[ "$update_avail" != 'none' ] && [ "$update_avail" = 'hotfix' ] && F_terminal_header_print "Hotfix update is available!      : " "Hotfix for v$script_version"
+	
+	F_terminal_header_print "Config file versions             : " "User: v$build_settings_version Core: v$update_settings_version"
 	F_terminal_show '---------------------------------------------------------------------'
 
 	if [ "$1" = 'view' ] ; then
@@ -3097,9 +3230,12 @@ F_main_menu() {
 		printf "%bDisabled%b\n" "$tRED" "$tCLR"
 	fi
 
-	if [ "$settings_test" != 'OK' ] ; then
-		[ "$amtm_status" = 'OK' ] && F_terminal_header_print "AMTM Email config------------: 9    " "Found - option 9 to import"
-		[ -f "$script_backup_file" ] && F_terminal_header_print "Backup Email config----------: B||b " "Found - option B|b to restore"
+	if [ "$amtm_status" = 'OK' ] && [ "$settings_test" = 'FAIL' ] ; then
+		F_terminal_header_print "AMTM Email config found------: 9    " "Ready to import"
+	fi
+
+	if [ "$settings_test" != 'OK' ] && [ -f "$script_backup_file" ] ; then
+		F_terminal_header_print "Backup Email config----------: B||b " "Found - option B|b to restore"
 	fi
 
 	F_terminal_separator
@@ -3326,10 +3462,11 @@ F_lock() {
 
 F_integrity_check() {
 	if [ "$update_settings_version" != "$current_core_config" ] ; then   # if new updated core config differs from saved, update
-		F_log_show "wicens core config is not current, updating"
+		F_terminal_header
+		F_log_terminal_fail "wicens core config is not current, updating"
 		# current file is already sourced, remove file and change new file with loaded vars
 		rm -f "$update_src"
-		F_default_update_create && F_log_show "core config v${current_core_config} created, updating w/user settings/router settings"
+		F_default_update_create && F_log_terminal_ok "core config v${current_core_config} created, updating w/user settings/router settings"
 
 		# v2->v3 need to pull for F_firmware_check
 		build_full="$(F_nvram_get buildno)"
@@ -3342,7 +3479,7 @@ F_integrity_check() {
 		echo "# Updated ver $current_core_config $(F_date full)" >> "$update_src"
 
 		source "$update_src"
-		F_log_show "Done, updated wicens core config file to v${current_core_config}"
+		F_log_terminal_ok "Done, updated wicens core config file to v${current_core_config}"
 
 		if F_auto_run checkall ; then   # if enabled reset if any changes to wan-event/services-start/cru
 			F_auto_run remove > /dev/null 2>&1   # remove entries
@@ -3355,10 +3492,11 @@ F_integrity_check() {
 	fi
 
 	if [ "$build_settings_version" != "$current_user_config" ] ; then   # if new updated user config differs from saved, update
-		F_log_show "wicens user config is not current, updating"
+		F_terminal_header
+		F_log_terminal_fail "wicens user config is not current, updating"
 		# current file is already sourced, remove file and change new file with loaded vars
 		rm -f "$config_src"
-		F_default_create && F_log_show "user config v${current_user_config} created, updating w/user settings"
+		F_default_create && F_log_terminal_ok "user config v${current_user_config} created, updating w/user settings"
 
 		F_replace_var saved_wan_ip "$saved_wan_ip" "$config_src"
 		F_replace_var saved_wan_date "$saved_wan_date" "$config_src"
@@ -3398,12 +3536,13 @@ F_integrity_check() {
 		else
 			F_replace_var protocol "$protocol" "$config_src"
 		fi
+		F_replace_var amtm_import "$amtm_import" "$config_src"
 
 		echo "# Updated from $build_settings_version to $current_user_config $(F_date full)" >> "$config_src"
 
 		source "$config_src"
 
-		F_log_show "Done, updated wicens user config file to v${current_user_config}"
+		F_log_terminal_ok "Done, updated wicens user config file to v${current_user_config}"
 		F_terminal_check "Any key to continue..."
 		read -rsn1 update2wait
 		printf '\r%b' "$tBACK$tERASE"
@@ -3459,17 +3598,7 @@ F_run_args() {
 			[ -f "$wicens_send_retry" ] && cat "$wicens_send_retry" && F_terminal_padding
 			rm -f "$wicens_wanip_retry" "$wicens_fw_retry" "$wicens_update_retry" "$wicens_send_retry" 2>/dev/null
 
-			remove_time='15'
-			while [ "$remove_time" != '0' ] ; do
-				printf "%b Loading menu in %s secs... any key to skip " "$tCHECK" "$remove_time"
-				remove_time=$((remove_time - 1))
-				removewaiting=zzz
-				read -rsn1 -t1 removewaiting
-				if [ ${#removewaiting} -le 1 ] ; then
-					break
-				fi
-				printf '\r%b' "$tERASE"
-			done
+			F_menu_wait 15
 		fi
 
 		# start wicens menu
