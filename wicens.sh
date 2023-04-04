@@ -20,8 +20,8 @@
 [ "$1" = 'debug' ] && shift && set -x
 
 # START ###############################################################################################################
-script_version='3.10'
-script_ver_date='Oct 27 2022'
+script_version='3.11'
+script_ver_date='Apr 4 2023'
 current_core_config='3.0'   # version of core(update) config (F_default_update_create)
 current_user_config='3.1'   # version of user config (F_default_create)
 
@@ -2005,7 +2005,7 @@ F_send_format_ssl() {
 		curl >> "$mail_log" 2>&1 \
 		-v \
 		--url "$protocol"://"$user_smtp_server" \
-		--mail-from "$user_from_name" --mail-rcpt "$user_send_to_addr" \
+		--mail-from "$user_from_addr" --mail-rcpt "$user_send_to_addr" \
 		--upload-file "$mail_file" \
 		--ssl-reqd \
 		--user "$user_from_addr:$user_pswd" $ssl_flag
@@ -2013,7 +2013,7 @@ F_send_format_ssl() {
 		curl >> "$mail_log" 2>&1 \
 		-v \
 		--url "$protocol"://"$user_smtp_server" \
-		--mail-from "$user_from_name" --mail-rcpt "$user_send_to_addr" \
+		--mail-from "$user_from_addr" --mail-rcpt "$user_send_to_addr" \
 		--mail-rcpt "$user_send_to_cc" \
 		--upload-file "$mail_file" \
 		--ssl-reqd \
