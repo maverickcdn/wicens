@@ -1392,10 +1392,10 @@ F_login_addr() {
 F_from_addr() {
 	F_terminal_entry_header 21
 
-	if [ -n "$user_from_addr" ] ; then
+	if [ -n "$user_from_addr" ] && [ -z "$user_from_name" ] ; then
 		user_from_name="$user_from_addr"
 	else
-		F_terminal_check_fail "Could not find a saved Email login address to pull from"
+		[ -z "$user_from_name" ] && F_terminal_check_fail "Could not find a saved Email login address to pull from"
 	fi
 
 	F_terminal_show "Enter the message 'from' Email address for the notification Email"
