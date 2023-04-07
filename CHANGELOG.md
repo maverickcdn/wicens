@@ -1,5 +1,15 @@
 # wicens change log
 -----------------
+## 3.20
+April 6 2023
+* CHANGED: revert 3.11 to 3.10
+* CHANGED: Email message 'from name' (6 in edit) changed to Email 'from address' (proper Email header)
+* CHANGED: Email 'from name' changed to 'wicens script' for Email header
+* ADDED: Email 'send to name' set to 'wicens user'
+* ADDED: Email 'send to name' and 'send to address' now in Email header
+* FIXED: custom script entry time var left in config when exiting script path entry
+* FIXED: misc script house keeping
+* INFO: amtm import will not import amtm FRIENDLY_ROUTER_NAME and TO_NAME variables
 ## 3.11
 Apr 4 2023
 * CHANGED: curl swap from name/user name
