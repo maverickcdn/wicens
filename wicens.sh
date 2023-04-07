@@ -20,8 +20,8 @@
 [ "$1" = 'debug' ] && shift && set -x
 
 # START ###############################################################################################################
-script_version='3.11'
-script_ver_date='Apr 4 2023'
+script_version='3.20'
+script_ver_date='Apr 6 2023'
 current_core_config='3.0'   # version of core(update) config (F_default_update_create)
 current_user_config='3.1'   # version of user config (F_default_create)
 
@@ -120,17 +120,17 @@ F_confirm() {
 } ### confirm
 
 F_menu_wait() {
-			wait_time="$1"
-			while [ "$wait_time" != '0' ] ; do
-				printf "%b Loading menu in %s secs... any key to skip " "$tCHECK" "$wait_time"
-				wait_time=$((wait_time - 1))
-				waiting=zzz
-				read -rsn1 -t1 waiting
-				if [ ${#waiting} -le 1 ] ; then
-					break
-				fi
-				printf '\r%b' "$tERASE"
-			done
+	wait_time="$1"
+	while [ "$wait_time" != '0' ] ; do
+		printf "%b Loading menu in %s secs... any key to skip " "$tCHECK" "$wait_time"
+		wait_time=$((wait_time - 1))
+		waiting=zzz
+		read -rsn1 -t1 waiting
+		if [ ${#waiting} -le 1 ] ; then
+			break
+		fi
+		printf '\r%b' "$tERASE"
+	done
 } ### menu_wait
 
 # vars from user config below #########################################################################################
@@ -293,7 +293,7 @@ F_opt_about() {
 	printf "Every Sunday the script will log the number of calls from wan-event.     \n\n"
 
 	printf "Thank you for using this script. \n\n"
-	
+
 	printf "SNBforums thread https://www.snbforums.com/threads/wicens-wan-ip-change-email-notification-script.69294/ \n\n"
 	} | more
 	F_menu_exit
@@ -302,7 +302,7 @@ F_opt_about() {
 F_opt_amtm() {
 	if [ "$1" = 'check' ] ; then
 		if [ -f "$amtm_email_conf" ] ; then   # check vars without sourcing file
-			for var_set_check in FROM_ADDRESS TO_NAME TO_ADDRESS FRIENDLY_ROUTER_NAME USERNAME SMTP PORT PROTOCOL ; do
+			for var_set_check in FROM_ADDRESS TO_NAME TO_ADDRESS FROM_ADDRESS USERNAME SMTP PORT PROTOCOL ; do
 				pull_var="$(grep "$var_set_check" $amtm_email_conf | cut -d"=" -f2 | tr -d '"')"
 				[ -z "$pull_var" ] && return 1
 			done
@@ -334,8 +334,8 @@ F_opt_amtm() {
 		F_replace_var user_send_to_addr "$TO_ADDRESS" "$config_src"
 		F_terminal_check_ok "Imported send to address - $TO_ADDRESS"
 		F_sleep
-		F_replace_var user_from_name "$FRIENDLY_ROUTER_NAME" "$config_src"
-		F_terminal_check_ok "Imported from name - $FRIENDLY_ROUTER_NAME"
+		F_replace_var user_from_name "$FROM_ADDRESS" "$config_src"
+		F_terminal_check_ok "Imported from address - $FROM_ADDRESS"
 		F_sleep
 		F_replace_var user_smtp_server "${SMTP}:${PORT}" "$config_src"
 		F_terminal_check_ok "Imported server address/port - ${SMTP}:${PORT}"
@@ -406,7 +406,7 @@ F_opt_amtm() {
 
 		# sync check
 		if [ "$user_from_addr" != "$USERNAME" ] || [ "$user_send_to_addr" != "$TO_ADDRESS" ] || \
-		   [ "$user_from_name" != "$FRIENDLY_ROUTER_NAME" ] || [ "$user_smtp_server" != "${SMTP}:${PORT}" ] || \
+		   [ "$user_from_name" != "$FROM_ADDRESS" ] || [ "$user_smtp_server" != "${SMTP}:${PORT}" ] || \
 		   [ "$user_message_type" != "smtp_ssl" ] || [ "$protocol" != "$PROTOCOL" ] || \
 		   [ "$ssl_flag" != "$SSL_FLAG" ] ; then
 				F_opt_amtm import update
@@ -429,7 +429,7 @@ F_opt_amtm() {
 		user_pswd_enc=
 		user_pswd=
 
-		[ "$passed_options" != 'cron' ] || [ "$passed_options" != 'wancall' ] && [ "$sync_updated" = 'Y' ] && F_menu_wait 10
+		[ "$passed_options" != 'cron' ] || [ "$passed_options" != 'wancall' ] && [ "$sync_updated" = 'Y' ] && F_menu_wait 20
 	fi
 } ### amtm_import
 
@@ -1365,15 +1365,15 @@ F_send_type() {
 	return 0
 } ### send_type
 
-F_from_email_addr() {
+F_login_addr() {
 	F_terminal_entry_header 20
-	F_terminal_show "Enter the Email send from (login) address for your Email provider"
+	F_terminal_show "Enter the Email login (address) for your Email provider"
 	F_terminal_show "eg.  myemail@myemailprovider.com  for $user_smtp_server"
 	[ -n "$user_from_addr" ] && F_terminal_padding && printf "%b Currently set to : %b%s%b\n" "$tTERMHASH" "$tGRN" "$user_from_addr" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
 	F_terminal_padding ; F_terminal_entry "From Email addr : "
 
 	read -r from_email_addr_entry
-	[ -z "$user_from_addr" ] && [ -z "$from_email_addr_entry" ] && F_terminal_check_fail "Error, from(login) address cannot be empty - Any key to retry" && read -rsn1 waitfromemail && return 1
+	[ -z "$user_from_addr" ] && [ -z "$from_email_addr_entry" ] && F_terminal_check_fail "ERROR - login credentials cannot be empty - Any key to retry" && read -rsn1 waitfromemail && return 1
 	[ -z "$from_email_addr_entry" ] && [ -n "$user_from_addr" ] && return 0
 	case $from_email_addr_entry in
 		E|e) F_menu_exit ;;
@@ -1389,17 +1389,18 @@ F_from_email_addr() {
 	fi
 } ### from_email_addr
 
-F_from_name() {
-	if [ -z "$user_from_name" ] ; then   # tries to auto generate a from name on first run
-		if [ -n "$fw_pulled_device_name" ] && [ -n "$fw_pulled_lan_name" ] ; then
-			user_from_name="${fw_pulled_device_name}.${fw_pulled_lan_name}"
-		else
-			user_from_name="$fw_device_model"
-		fi
+F_from_addr() {
+	F_terminal_entry_header 21
+
+	if [ -n "$user_from_addr" ] ; then
+		user_from_name="$user_from_addr"
+	else
+		F_terminal_check_fail "Could not find a saved Email login address to pull from"
 	fi
 
-	F_terminal_entry_header 21
-	F_terminal_show "Enter the message 'from name' for the notification Email"
+	F_terminal_show "Enter the message 'from' Email address for the notification Email"
+	F_terminal_show "Typically this is the same as your Email login address"
+	F_terminal_padding
 	[ -n "$user_from_name" ] && F_terminal_padding && printf "%b Currently set to : %b%s%b\n" "$tTERMHASH" "$tGRN" "$user_from_name" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
 	F_terminal_padding ; F_terminal_entry "Email from name : "
 
@@ -1711,9 +1712,9 @@ F_build_settings() {
 	until F_send_to_cc; do : ; done
 	until F_smtp_server ; do : ; done
 	until F_send_type ; do : ; done
-	until F_from_email_addr ; do : ; done
+	until F_login_addr ; do : ; done
 	[ "$user_message_type" != 'smtp_isp_nopswd' ] && until F_smtp_pswd ; do : ; done
-	until F_from_name ; do : ; done
+	until F_from_addr ; do : ; done
 	until F_message_config ; do : ; done
 	message_entry_loop=1   # 2 vars used in message_intervals_entry but cant be in that function
 	email2count=2
@@ -1770,8 +1771,8 @@ F_edit_settings() {
 	F_terminal_header_print "Current Email send to CC address    2: " "$user_send_to_cc"
 	F_terminal_header_print "Current Email server addr:port      3: " "$user_smtp_server"
 	F_terminal_header_print "Current Email send format type      4: " "$user_message_type"
-	F_terminal_header_print "Current Email send from address     5: " "$user_from_addr"
-	F_terminal_header_print "Current Email message from name     6: " "$user_from_name"
+	F_terminal_header_print "Current Email login user (address)  5: " "$user_from_addr"
+	F_terminal_header_print "Current Email from Email address    6: " "$user_from_name"
 	F_terminal_header_print "Total # Email notifications set     7: " "$user_message_count"
 	[ "$user_message_type" = "smtp_ssl" ] && F_terminal_header_print "Current curl SSL protocol           8: " "$protocol"
 	[ "$user_message_count" -gt 1 ] 2>/dev/null && F_terminal_header_print "Interval between Email 1/2          9: " "$user_message_interval_1"
@@ -1792,8 +1793,8 @@ F_edit_settings() {
 			2) until F_send_to_cc; do : ; done ;;
 			3) until F_smtp_server ; do : ; done ;;
 			4) until F_send_type ; do : ; done ;;
-			5) until F_from_email_addr ; do : ; done ;;
-			6) until F_from_name ; do : ; done ;;
+			5) until F_login_addr ; do : ; done ;;
+			6) until F_from_addr ; do : ; done ;;
 			7) until F_message_config ; do : ; done
 				if [ "$user_message_count" -gt 1 ] ; then
 					message_entry_loop=1   # 2 vars used in message_intervals_entry but cant be in that function
@@ -1895,13 +1896,14 @@ F_email_message() {
 	{  # start of message output part 1/2
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		[ -z "$user_custom_subject" ] && echo "Subject: WAN IP has changed on $fw_device_model" || echo "Subject: $formatted_custom_subject"
-		echo "From: $user_from_name <$user_from_addr>"
+		echo "From: \"wicens script\" <$user_from_name>"
 		echo "Date: $(F_date full)"
+		echo "To: \"wicens user\" <$user_send_to_addr>"
 		echo ""
 		[ "$test_mode" = 'yes' ] && [ "$passed_options" != 'sample' ] && echo "### This is a TEST message ###" && echo ""
 		echo "NOTICE"
 		echo ""
-		echo "WAN IP for $user_from_name $fw_device_model has changed"
+		echo "WAN IP for ${fw_pulled_device_name}.${fw_pulled_lan_name} on $fw_device_model has changed"
 		echo ""
 		echo "New WAN IP : $current_wan_ip"
 		echo ""
@@ -1960,7 +1962,7 @@ F_email_message() {
 		uptime_pretty="$(printf '%d day(s) %d hr(s) %d min(s) %d sec(s)\n' $((router_uptime/86400)) $((router_uptime%86400/3600)) $((router_uptime%3600/60)) $((router_uptime%60)))"
 		echo "Router uptime: $uptime_pretty"
 		echo ""
-		echo "A message from wicens script on your $fw_device_model"
+		echo "A message from wicens script version:$script_version on your $fw_device_model"
 
 		if [ "$passed_options" != 'sample' ] ; then   # padding incase emails contain footer info
 			echo ""
@@ -2005,7 +2007,7 @@ F_send_format_ssl() {
 		curl >> "$mail_log" 2>&1 \
 		-v \
 		--url "$protocol"://"$user_smtp_server" \
-		--mail-from "$user_from_addr" --mail-rcpt "$user_send_to_addr" \
+		--mail-from "$user_from_name" --mail-rcpt "$user_send_to_addr" \
 		--upload-file "$mail_file" \
 		--ssl-reqd \
 		--user "$user_from_addr:$user_pswd" $ssl_flag
@@ -2013,7 +2015,7 @@ F_send_format_ssl() {
 		curl >> "$mail_log" 2>&1 \
 		-v \
 		--url "$protocol"://"$user_smtp_server" \
-		--mail-from "$user_from_addr" --mail-rcpt "$user_send_to_addr" \
+		--mail-from "$user_from_name" --mail-rcpt "$user_send_to_addr" \
 		--mail-rcpt "$user_send_to_cc" \
 		--upload-file "$mail_file" \
 		--ssl-reqd \
@@ -2637,8 +2639,12 @@ F_internet_check() {
 # UPDATE ##############################################################################################################
 
 F_web_update_check() {
-	F_terminal_header
-	F_terminal_padding ; printf "%bScript Update Check%b \n" "$tTERMHASH $tYEL" "$tCLR" ; F_terminal_padding
+	if [ "$1" = 'force' ] ; then
+		printf "%bScript Update Check%b \n" "$tTERMHASH $tYEL" "$tCLR"
+	else
+		printf "%bConfirming update $update_avail is most current \n" "$tTERMHASH"
+	fi
+	F_terminal_padding
 
 	# download wait timer for terminal
 	wait_update_time=5
@@ -2700,8 +2706,9 @@ F_update_mail_notify() {
 	{
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		echo "Subject: Update available for wicens script"
-		echo "From: $user_from_name <$user_from_addr>"
+		echo "From: \"wicens script\" <$user_from_name>"
 		echo "Date: $(F_date full)"
+		echo "To: \"wicens user\" <$user_send_to_addr>"
 		echo ""
 		echo "NOTICE"
 		echo ""
@@ -2799,8 +2806,9 @@ F_fw_update_notify() {
 	{
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		echo "Subject: Firmware Update version $new_fw_ver_pretty available"
-		echo "From: $user_from_name <$user_from_addr>"
+		echo "From: \"wicens script\" <$user_from_name>"
 		echo "Date: $(F_date full)"
+		echo "To: \"wicens user\" <$user_send_to_addr>"
 		echo ""
 		echo "NOTICE"
 		echo ""
@@ -2969,6 +2977,9 @@ F_settings_test() {
 		fi
 	fi
 
+	# started custom script and wrote time but exited
+	[ -n "$user_custom_script_time" ] && [ -z "$user_custom_script" ] && F_replace_var user_custom_script_time "''" "$config_src"
+
 	# only if someone manually deletes saved WAN IP
 	if [ -z "$saved_wan_ip" ] && [ "$settings_test" = 'OK' ] && [ "$passed_options" = 'manual' ] ; then
 		F_saved_wan_ip_create
@@ -3070,8 +3081,8 @@ F_status() {
 	F_terminal_header_print "Current Email server addr:port   : " "$user_smtp_server"
 	F_terminal_header_print "Current Email send format type   : " "$user_message_type"
 	[ -f "$cred_loc" ] && F_terminal_header_print "Current Email password           : " "Pswd saved"
-	F_terminal_header_print "Current Email send from address  : " "$user_from_addr"
-	F_terminal_header_print "Current Email message from name  : " "$user_from_name"
+	F_terminal_header_print "Current Email login address      : " "$user_from_addr"
+	F_terminal_header_print "Current Email from address       : " "$user_from_name"
 	F_terminal_header_print "Total # Email notifications set  : " "$user_message_count"
 	[ "$user_message_count" -gt 1 ] 2>/dev/null && F_terminal_header_print "Interval between Email 1/2       : " "$user_message_interval_1"
 	[ "$user_message_count" -gt 2 ] 2>/dev/null && F_terminal_header_print "Interval between Email 2/3       : " "$user_message_interval_2"
@@ -3143,7 +3154,7 @@ F_status() {
 
 	[ "$update_avail" != 'none' ] && [ "$update_avail" != 'hotfix' ] && F_terminal_header_print "New version is available!        : " "Version $update_avail"
 	[ "$update_avail" != 'none' ] && [ "$update_avail" = 'hotfix' ] && F_terminal_header_print "Hotfix update is available!      : " "Hotfix for v$script_version"
-	
+
 	F_terminal_header_print "Config file versions             : " "User: v$build_settings_version Core: v$update_settings_version"
 	F_terminal_show '---------------------------------------------------------------------'
 
