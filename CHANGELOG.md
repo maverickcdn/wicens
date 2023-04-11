@@ -1,5 +1,11 @@
 # wicens change log
 -----------------
+## 3.30
+April 10 2023
+* FIX: Sunday logging broken since 2.85
+* FIX: date in Email message not RFC compliant (rejected by some servers)
+* CHANGED: removed changelog duplication during update installation
+* CHANGED: misc wording
 ## 3.20
 April 6 2023
 * CHANGED: revert 3.11 to 3.10
