@@ -20,8 +20,8 @@
 [ "$1" = 'debug' ] && shift && set -x
 
 # START ###############################################################################################################
-script_version='3.20'
-script_ver_date='Apr 6 2023'
+script_version='3.30'
+script_ver_date='Apr 10 2023'
 current_core_config='3.0'   # version of core(update) config (F_default_update_create)
 current_user_config='3.1'   # version of user config (F_default_create)
 
@@ -761,7 +761,8 @@ F_opt_disable() {
 	F_terminal_show "services-start. Saved configuration will be kept."
 	F_terminal_show "You will not receive an Email notification if your WAN IP changes."
 	F_terminal_show "Nor will you receive notification of script updates if enabled."
-	F_terminal_show "Firmware update notifications will continue if enabled."
+	F_terminal_show "Firmware update notifications will continue if enabled, but will"
+	F_terminal_show "not have the redundacy failback of cron runs"
 	F_terminal_show "Use Main Menu option M||m to re-enable notifications." ; F_terminal_padding
 
 	if F_confirm "Are you sure you wish to disable?" ; then
@@ -1401,7 +1402,7 @@ F_from_addr() {
 	F_terminal_show "Enter the message 'from' Email address for the notification Email"
 	F_terminal_show "Typically this is the same as your Email login address"
 	F_terminal_padding
-	[ -n "$user_from_name" ] && F_terminal_padding && printf "%b Currently set to : %b%s%b\n" "$tTERMHASH" "$tGRN" "$user_from_name" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
+	[ -n "$user_from_name" ] && printf "%b Currently set to : %b%s%b\n" "$tTERMHASH" "$tGRN" "$user_from_name" "$tCLR" && F_terminal_show "Leave entry blank to keep current"
 	F_terminal_padding ; F_terminal_entry "Email from name : "
 
 	read -r from_name_entry
@@ -1646,7 +1647,7 @@ F_default_create() {
 		echo "user_send_to_addr=''"
 		echo "user_send_to_cc=''"
 		echo "user_message_type=''"
-		echo "user_message_count='0'"
+		echo "user_message_count=0"
 		echo "user_message_interval_1=''"
 		echo "user_message_interval_2=''"
 		echo "user_message_interval_3=''"
@@ -1654,8 +1655,8 @@ F_default_create() {
 		echo "user_custom_text=''"
 		echo "user_custom_script=''"
 		echo "user_custom_script_time=''"
-		echo "user_update_notification='1'"
-		echo "user_fw_update_notification='1'"
+		echo "user_update_notification=1"
+		echo "user_fw_update_notification=1"
 		echo "###########################################################"
 		echo "cron_run_count=0"
 		echo "last_cron_run=''"
@@ -1692,13 +1693,13 @@ F_default_update_create() {
 		echo "fw_pulled_lan_name="
 		echo "fw_device_model="
 		echo "update_avail='none'"
-		echo "update_cron_epoch='0'"
-		echo "update_notify_state='0'"
-		echo "update_fw_notify_state='0'"
-		echo "update_period='172800'   # period between update checks default 48hrs"
-		echo "wan_history_count='10'   # change if you want more/less than 10 historcal IPs in Email message"
-		echo "retry_wait_period='21600'   # period between failed email retries default 6 hrs"
-		echo "max_email_retry='5'   # max cron run retries before waiting for retry_period"
+		echo "update_cron_epoch=0"
+		echo "update_notify_state=0"
+		echo "update_fw_notify_state=0"
+		echo "update_period=172800   # period between update checks default 48hrs"
+		echo "wan_history_count=10   # change if you want more/less than 10 historcal IPs in Email message"
+		echo "retry_wait_period=21600   # period between failed email retries default 6 hrs"
+		echo "max_email_retry=5   # max cron run retries before waiting for retry_period"
 		echo "###########################################################"
 		echo "# Created : $(F_date full)"
 	} > "$update_src"
@@ -1897,7 +1898,7 @@ F_email_message() {
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		[ -z "$user_custom_subject" ] && echo "Subject: WAN IP has changed on $fw_device_model" || echo "Subject: $formatted_custom_subject"
 		echo "From: \"wicens script\" <$user_from_name>"
-		echo "Date: $(F_date full)"
+		echo "Date: $(/bin/date -R)"
 		echo "To: \"wicens user\" <$user_send_to_addr>"
 		echo ""
 		[ "$test_mode" = 'yes' ] && [ "$passed_options" != 'sample' ] && echo "### This is a TEST message ###" && echo ""
@@ -2640,9 +2641,11 @@ F_internet_check() {
 
 F_web_update_check() {
 	if [ "$1" = 'force' ] ; then
-		printf "%bScript Update Check%b \n" "$tTERMHASH $tYEL" "$tCLR"
+		F_terminal_header ; F_terminal_padding
+		printf "%b Script Update Check%b \n" "${tTERMHASH}${tYEL}" "$tCLR"
 	else
-		printf "%bConfirming update $update_avail is most current \n" "$tTERMHASH"
+		printf "%b Confirming update %b is most current \n" "$tTERMHASH" "${tGRN}${update_avail}${tCLR}"
+		orig_update="$update_avail"   # keep note of originally found update
 	fi
 	F_terminal_padding
 
@@ -2688,11 +2691,22 @@ F_web_update_check() {
 			[ "$update_notify_state" = 1 ] && F_replace_var update_notify_state 0 "$update_src"
 		fi
 	else
-		F_replace_var update_avail "$git_version" "$update_src"
-		printf '\r%b Success%b checking for update... Ver: %b%s%b available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR" "$tGRN" "$git_version" "$tCLR"
-		F_terminal_padding
-		F_terminal_show "Change log:"
-		/usr/sbin/curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | /bin/sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | /bin/sed 's/## //'
+		if [ "$1" = 'force' ] ; then   # menu check
+			F_replace_var update_avail "$git_version" "$update_src"
+			printf '\r%b Success%b checking for update... Ver: %b%s%b available \n' "$tERASE$tCHECKOK$tGRN" "$tCLR" "$tGRN" "$git_version" "$tCLR"
+			F_terminal_padding
+			F_terminal_show "Change log:"
+			/usr/sbin/curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | /bin/sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | /bin/sed 's/## //'
+		else   # run by script update verify newest check
+			printf '\r%b Success%b checking for update...\n' "$tERASE$tCHECKOK$tGRN" "$tCLR"
+			if [ "$git_version" != "$orig_update" ] ; then
+				/usr/sbin/curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | /bin/sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | /bin/sed 's/## //'
+				F_terminal_check_ok "Will download newer found version Ver: $git_version vs originally found Ver: $orig_update"
+			else
+				F_terminal_check_ok "Ver: $git_version is the most current available update"
+			fi
+			F_terminal_padding
+		fi
 	fi
 
 	source "$update_src"   # resource config to update vars in current session
@@ -2707,7 +2721,7 @@ F_update_mail_notify() {
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		echo "Subject: Update available for wicens script"
 		echo "From: \"wicens script\" <$user_from_name>"
-		echo "Date: $(F_date full)"
+		echo "Date: $(/bin/date -R)"
 		echo "To: \"wicens user\" <$user_send_to_addr>"
 		echo ""
 		echo "NOTICE"
@@ -2726,7 +2740,7 @@ F_update_mail_notify() {
 			echo "$(/usr/sbin/curl -fsL --retry 3 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | /bin/sed -n "/^## $script_version/,/^##/p" | head -n -1 | /bin/sed 's/## //')"
 		fi
 		echo ""
-		echo "Run wicens script on your router and select option u to update"
+		echo "Run wicens script on your router and select option I to update"
 		echo ""
 		echo "Message sent: $(F_date full)"
 		echo "----------------------------------------------------------------------------"
@@ -2764,13 +2778,11 @@ F_local_script_update() {
 		esac
 	fi
 
-	saved_update="$update_avail"
 	F_terminal_show "Starting script update to ver: $update_avail" ; F_terminal_padding
-	F_web_update_check   # confirm saved update avail is current, notify if not
 
-	if [ "$update_avail" != "$saved_update" ] ; then
-		F_terminal_check_fail "Error, current downloadable update is newer than saved available update"
-		F_terminal_check_ok "Updating with newest update version $update_avail"
+	# time between update found and current re-check give 60secs for menu update vs mail notification
+	if [ "$(($(F_date sec) - update_cron_epoch))" -gt 60 ] ; then
+		F_web_update_check   # confirm saved update avail is current, notify if not
 	fi
 
 	F_terminal_check "Dowloading...."
@@ -2778,7 +2790,7 @@ F_local_script_update() {
 
 	if /usr/sbin/curl -fsL --retry 3 --connect-timeout 15 "$script_git_src" -o /jffs/scripts/wicens.sh ; then
 		[ ! -x "$script_name_full" ] && F_chmod "$script_name_full"
-		F_terminal_check_ok "Success, newest script ver $update_avail installed" ; F_terminal_padding
+		F_terminal_check_ok "Success, newest script ver $update_avail installed"
 		F_replace_var update_avail "none" "$update_src"
 		F_replace_var update_date "$(F_date full)" "$config_src"
 
@@ -2807,7 +2819,7 @@ F_fw_update_notify() {
 		[ -n "$user_send_to_cc" ] && echo "Cc: $user_send_to_cc"
 		echo "Subject: Firmware Update version $new_fw_ver_pretty available"
 		echo "From: \"wicens script\" <$user_from_name>"
-		echo "Date: $(F_date full)"
+		echo "Date: $(/bin/date -R)"
 		echo "To: \"wicens user\" <$user_send_to_addr>"
 		echo ""
 		echo "NOTICE"
@@ -2885,6 +2897,7 @@ F_fw_updates() {
 		fi
 
 		F_replace_var user_fw_update_notification 0 "$config_src"
+		F_log_terminal_ok "Firmware update notifications enabled"
 	fi
 
 	if [ "$1" = 'remove' ] ; then
@@ -2909,6 +2922,7 @@ F_fw_updates() {
 		fi
 
 		F_replace_var user_fw_update_notification 1 "$config_src"
+		F_log_terminal_ok "Firmware update notifcations disabled"
 	fi
 } # fw_updates
 
@@ -3632,7 +3646,7 @@ F_run_args() {
 		# cron - Sunday logging #######################################################################################
 		weekly_wancall_total=$((wancall_run_count - last_wancall_log_count))   # log msg count
 
-		if [ "$(F_date +'%u')" = '7' ] && [ "$log_cron_msg" = '0' ] ; then
+		if [ "$(/bin/date +'%u')" = '7' ] && [ "$log_cron_msg" = '0' ] ; then
 			F_log "Started successfully by wan-event connected $weekly_wancall_total times in the last week, $wancall_run_count times since install"
 			[ -n "$last_wancall_run" ] && F_log "Last wan-event connected trigger $last_wancall_run"
 			F_log "Recorded $ip_change_count IP change(s) since install"
@@ -3640,7 +3654,7 @@ F_run_args() {
 			F_replace_var log_cron_msg 1 "$config_src"
 		fi
 
-		if [ "$(F_date +'%u')" = '1' ] && [ "$log_cron_msg" = '1' ] ; then   # monday reset
+		if [ "$(/bin/date +'%u')" = '1' ] && [ "$log_cron_msg" = '1' ] ; then   # monday reset
 			F_replace_var log_cron_msg 0 "$config_src"
 		fi
 
