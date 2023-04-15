@@ -20,8 +20,8 @@
 [ "$1" = 'debug' ] && shift && set -x
 
 # START ###############################################################################################################
-script_version='3.30'
-script_ver_date='Apr 10 2023'
+script_version='3.40'
+script_ver_date='Apr 15 2023'
 current_core_config='3.0'   # version of core(update) config (F_default_update_create)
 current_user_config='3.1'   # version of user config (F_default_create)
 
@@ -915,6 +915,14 @@ F_opt_remove() {
 		F_terminal_check_ok "Removed lock file 2 of 2 "
 	else
 		F_terminal_check_fail "2nd lock file not present"
+	fi
+
+	F_terminal_check "Removing retry file"
+	if [ -f "$wicens_wanip_retry" ] ; then
+		rm -f "$wicens_wanip_retry"
+		F_terminal_check_ok "Removed WAN IP retry file"
+	else
+		F_terminal_check_fail "WAN IP retry file not present"
 	fi
 
 	F_terminal_check_ok "Exiting."
@@ -2101,18 +2109,21 @@ F_send_mail() {
 				printf "%b Sleeping %s before sending next Email" "$tCHECK" "$user_message_interval_1"
 				F_log "Sleeping $user_message_interval_1 before sending next Email"
 				sleep "$user_message_interval_1"
+				F_terminal_check_ok "Sleep time done"
 			fi
 
 			if [ "$loop_run" = '3' ] ; then
 				printf "%b Sleeping %s before sending next Email" "$tCHECK" "$user_message_interval_2"
 				F_log "Sleeping $user_message_interval_2 before sending next Email"
 				sleep "$user_message_interval_2"
+				F_terminal_check_ok "Sleep time done"
 			fi
 
 			if [ "$loop_run" = '4' ] ; then
 				printf "%b Sleeping %s before sending next email" "$tCHECK" "$user_message_interval_3"
 				F_log "Sleeping $user_message_interval_3 before sending next Email"
 				sleep "$user_message_interval_3"
+				F_terminal_check_ok "Sleep time done"
 			fi
 		fi
 	done
@@ -2139,8 +2150,10 @@ F_send_mail() {
 	if [ "$from_menu" = 'yes' ] ; then
 		F_menu_exit
 	else
-		F_terminal_check_ok "This script is now configured"
-		F_terminal_show "Run wicens on the command line to run script manually with set config"
+		if [ "$building_settings" = 'yes' ] ; then
+			F_terminal_check_ok "This script is now configured"
+			F_terminal_show "Run wicens on the command line to run script manually with set config"
+		fi
 		F_clean_exit
 	fi
 } ### send_mail
@@ -2377,7 +2390,7 @@ F_auto_run() {
 
 F_random_num() {
 	[ -z "$random_max" ] && random_max='30'
-	/usr/bin/awk -v min=1 -v max="$random_max" 'BEGIN{srand(); print int(min+rand()*(max-min+1))}'   # less than 5 mins to keep lock happy
+	/usr/bin/awk -v min=1 -v max="$random_max" -v seed="$(/usr/bin/awk '{print $1}' < /proc/uptime | tr -d '.')" 'BEGIN{srand(seed); print int(min+rand()*(max-min+1))}'   # less than 5 mins to keep lock happy
 } ### random_num
 
 F_private_ip() {
@@ -2574,7 +2587,6 @@ F_internet_ping() {
 		random_site="$(F_random_num)"   # pick random line
 
 		if echo "$last_random" | grep -q "$random_site" ; then   # if random picks one of last 3 recently tested sites try again
-			sleep 1   # awk random needs 1 sec sleep to function properly
 			continue
 		else
 			last_random="${last_random}$random_site"   # create list of tested sites
@@ -2765,6 +2777,19 @@ F_update_mail_notify() {
 
 F_local_script_update() {
 	F_terminal_header
+	F_terminal_padding
+
+	if [ "$update_avail" != 'none' ] && [ "$update_avail" != 'hotfix' ] ; then
+		F_terminal_show "Update available - version $update_avail"
+		F_terminal_padding
+	elif [ "$update_avail" != 'none' ] && [ "$update_avail" = 'hotfix' ] ; then
+		F_terminal_show "Hotfix update available!"
+		F_terminal_padding
+	fi
+
+	if ! F_confirm "Proceed with installing script update?" ; then
+		F_clean_exit reload
+	fi
 
 	if [ "$settings_test" = 'OK' ] && [ ! -f "$script_backup_file" ] ; then
 		F_terminal_warning
@@ -2778,6 +2803,7 @@ F_local_script_update() {
 		esac
 	fi
 
+	F_terminal_check_ok "Installing..." ; F_terminal_padding
 	F_terminal_show "Starting script update to ver: $update_avail" ; F_terminal_padding
 
 	# time between update found and current re-check give 60secs for menu update vs mail notification
@@ -2785,7 +2811,7 @@ F_local_script_update() {
 		F_web_update_check   # confirm saved update avail is current, notify if not
 	fi
 
-	F_terminal_check "Dowloading...."
+	F_terminal_check "Downloading...."
 	sleep 1
 
 	if /usr/sbin/curl -fsL --retry 3 --connect-timeout 15 "$script_git_src" -o /jffs/scripts/wicens.sh ; then
@@ -3277,9 +3303,9 @@ F_main_menu() {
 	F_terminal_show "Backup/Restore settings menu-: B||b"
 
 	if [ "$update_avail" != 'none' ] && [ "$update_avail" != 'hotfix' ] ; then
-		F_terminal_header_print "Update script----------------: I||i "  "Update available - version $update_avail"
+		F_terminal_header_print "Install script update--------: I||i "  "Update available - version $update_avail"
 	elif [ "$update_avail" != 'none' ] && [ "$update_avail" = 'hotfix' ] ; then
-		F_terminal_header_print "Update script----------------: I||i " "Hotfix available!"
+		F_terminal_header_print "Install script update--------: I||i " "Hotfix available!"
 	else
 		F_terminal_show "Check for script update------: F||f"
 	fi
@@ -3391,8 +3417,10 @@ F_lock() {
 		process_created="$(/bin/sed -n '5p' $script_lock)"   # started on
 		process_calledby="$(/bin/sed -n '6p' $script_lock)"  # created by
 		process_time="$(/bin/sed -n '3p' $script_lock)"   # started seconds time
-		lock1_diff_time="$((run_epoch - process_time))"
+		lock1_diff_time="$((run_epoch - process_time))"   # age of lock file
+		lock1_rem_time="$((330 - lock1_diff_time))"   # lock allowed 330
 		F_terminal_header
+		F_terminal_warning
 		F_terminal_show "wicens failed to start"
 		F_terminal_padding
 
@@ -3402,6 +3430,7 @@ F_lock() {
 
 			while [ "$loop_count_run" != '0' ] ; do
 				newval="$(eval 'echo "${user_message_interval_'"$loop_count_run"'}"')"   # reading variable user_message_interval_1/2/3
+				[ -z "$newval" ] && loop_count_run=$((loop_count_run - 1)) && continue
 				interval_type="$(echo "$newval" | /bin/sed -e "s/^.*\(.\)$/\1/")"	# strip second,minute,hour,day
 				time_period="$(echo "$newval" | /bin/sed 's/[a-z]$//')"	# strip time value
 				if [ "$interval_type" = 'd' ] ; then
@@ -3424,7 +3453,8 @@ F_lock() {
 				loop_count_run=$((loop_count_run - 1))
 			done
 
-			check_lock_count=$((interval_time_count_1+interval_time_count_2+interval_time_count_3+100))  # add 100secs just incase script happens to be exiting or had start delays reads original wicens.lock start date seconds
+			check_lock_count="$((interval_time_count_1+interval_time_count_2+interval_time_count_3+100))"  # add 100secs just incase script happens to be exiting or had start delays reads original wicens.lock start date seconds
+			lock2_rem_time="$((check_lock_count - lock1_diff_time))"   # diff between total notification time - lock age
 
 			if [ "$((run_epoch - $(/bin/sed -n '4p' $script_mail_lock)))" -gt "$check_lock_count" ] ; then
 				rm -f "$script_mail_lock"
@@ -3444,8 +3474,10 @@ F_lock() {
 					[ "$passed_options" = 'manual' ] && F_terminal_check "Any key to continue" && read -rsn1 staleremove
 				else
 					F_terminal_show "wicens.lock and wicenssendmail.lock exist"
+					F_terminal_show "Process still exists sending Email notifcations"
 					F_terminal_show "Lock files not over age limit"
-					F_terminal_show "Process still exists, likely sending Email notifcations."
+					printf '%b wicens.lock is aged %b seconds \n' "$tTERMHASH" "${tGRN}$lock1_diff_time${tCLR}"
+					printf '%b wicenssendmail.lock has %b seconds remaining \n' "$tTERMHASH" "${tGRN}$lock2_rem_time${tCLR}"
 					F_terminal_show "Lock file $process_created"
 					F_terminal_show "Use sh $script_name_full remove"
 					F_terminal_show "To manually remove lock files and kill running processes" ; F_terminal_padding
@@ -3514,6 +3546,7 @@ F_integrity_check() {
 		F_terminal_check "Any key to continue..."
 		read -rsn1 updatedwait
 		printf '\r%b' "$tERASE"
+		source "$update_src"
 	fi
 
 	if [ "$build_settings_version" != "$current_user_config" ] ; then   # if new updated user config differs from saved, update
@@ -3571,6 +3604,7 @@ F_integrity_check() {
 		F_terminal_check "Any key to continue..."
 		read -rsn1 update2wait
 		printf '\r%b' "$tBACK$tERASE"
+		source "$config_src"
 	fi
 } ### config integrity check
 
@@ -3799,14 +3833,19 @@ F_run_args() {
 
 # validate args
 case $passed_options in
-	'reload') run_date="$(F_date full)" ; run_epoch="$(F_date sec)" ; passed_options='manual' ;;
+	'reload') run_date="$(F_date full)"
+			  run_epoch="$(F_date sec)"
+			  passed_options='manual'
+			  F_user_settings
+			  ;;
 
 	'cron'|'wancall'|'fwupdate'|'manual'|'test'|'send') F_ntp
-	                                                    F_lock
-	                                                    F_lock create
-	                                                    [ -f "$mail_file" ] && rm -f "$mail_file"
-	                                                    [ "$passed_options" = 'send' ] && fwd_send_msg="$2" && fwd_send_addr="$3"
-	                                                    ;;
+														F_user_settings
+														F_lock
+														F_lock create
+														[ -f "$mail_file" ] && rm -f "$mail_file"
+														[ "$passed_options" = 'send' ] && fwd_send_msg="$2" && fwd_send_addr="$3"
+														;;
 
 	'remove') F_opt_remove ;;   # manually remove lock files
 
@@ -3814,9 +3853,6 @@ case $passed_options in
 	   exit 0
 	   ;;
 esac
-
-# load user settings/validate
-F_user_settings
 
 # check how script was run and launch
 F_run_args
