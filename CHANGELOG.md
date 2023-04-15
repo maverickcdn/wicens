@@ -1,5 +1,13 @@
 # wicens change log
 -----------------
+## 3.40
+April 15 2023
+* FIXED: script lock broken when multiple notifications set
+* FIXED: re-source configs after they are updated
+* ADDED: remove retry file when forcing lock file removals
+* ADDED: install update confirmation, reworded menu update/install
+* CHANGED: lock optimization, better wording/debug info
+* CHANGED: made awk random number generator faster for internet check
 ## 3.30
 April 10 2023
 * FIX: Sunday logging broken since 2.85
