@@ -20,7 +20,7 @@
 [ "$1" = 'debug' ] && shift && set -x
 
 # START ###############################################################################################################
-script_version='3.40'
+script_version='3.41'
 script_ver_date='Apr 15 2023'
 current_core_config='3.0'   # version of core(update) config (F_default_update_create)
 current_user_config='3.1'   # version of user config (F_default_create)
@@ -165,35 +165,43 @@ F_user_settings() {
 
 # firmware check ######################################################################################################
 F_firmware_check() {
-	if [ "$build_no" = '374' ] ; then john_sub=${build_extend:0:2} ; fi
-
-	if [ "$build_no" != '386' ] || [ "$build_no" = '384' ] && [ "$build_sub" -lt 15 ] || [ "$build_no" = '374' ] && [ "$john_sub" -lt 48 ] ; then
-		F_terminal_header
-		F_terminal_check_fail "Sorry this version of firmware is not compatible, please update to 384.15 or newer, or 374 LTS release 48 or newer to utilize this script"
-		F_terminal_padding
-		rm -d "$script_dir"
-		F_clean_exit
-	else
-		pulled_device_name="$(F_nvram_get lan_hostname)"
-		pulled_lan_name="$(F_nvram_get lan_domain)"
-		if [ -z "$(F_nvram_get odmpid)" ] ; then device_model="$(F_nvram_get productid)" ; else device_model="$(F_nvram_get odmpid)" ; fi
-
-		F_replace_var fw_pulled_device_name "$pulled_device_name" "$update_src"
-		F_replace_var fw_pulled_lan_name "$pulled_lan_name" "$update_src"
-		F_replace_var fw_device_model "$device_model" "$update_src"
-		F_replace_var fw_build_no "$build_no" "$update_src"
-		if [ "$build_no" = '374' ] ; then F_replace_var fw_build_sub "$john_sub" "$update_src" ; else F_replace_var fw_build_sub "$build_sub" "$update_src" ; fi
-		F_replace_var fw_build_extend "$build_extend" "$update_src"
-
-		source "$update_src"
-
-		if [ "$1" = 'fwupdate' ] ; then
-			F_terminal_header ; F_terminal_padding
-			F_log_show "core config v${update_settings_version} updated for new router firmware version"
-			sleep 3
-		else
-			F_log "core config v${update_settings_version} updated with router config"
+	F_fw_valid() {
+		if [ "$build_no" = '384' ] && [ "$build_sub" -lt 15 ] ; then
+			return 1
+		elif [ "$build_no" = '374' ] && [ "$john_sub" -lt 48 ] ; then
+			return 1
 		fi
+	}
+
+	[ "$build_no" = '374' ] && john_sub=${build_extend:0:2}
+
+	if ! F_fw_valid ; then
+			F_terminal_header
+			F_terminal_check_fail "Sorry this version of firmware is not compatible, please update to 384.15 or newer, or 374 LTS release 48 or newer to utilize this script"
+			F_terminal_padding
+			rm -d "$script_dir"
+			F_clean_exit
+	fi
+
+	pulled_device_name="$(F_nvram_get lan_hostname)"
+	pulled_lan_name="$(F_nvram_get lan_domain)"
+	if [ -z "$(F_nvram_get odmpid)" ] ; then device_model="$(F_nvram_get productid)" ; else device_model="$(F_nvram_get odmpid)" ; fi
+
+	F_replace_var fw_pulled_device_name "$pulled_device_name" "$update_src"
+	F_replace_var fw_pulled_lan_name "$pulled_lan_name" "$update_src"
+	F_replace_var fw_device_model "$device_model" "$update_src"
+	F_replace_var fw_build_no "$build_no" "$update_src"
+	if [ "$build_no" = '374' ] ; then F_replace_var fw_build_sub "$john_sub" "$update_src" ; else F_replace_var fw_build_sub "$build_sub" "$update_src" ; fi
+	F_replace_var fw_build_extend "$build_extend" "$update_src"
+
+	source "$update_src"
+
+	if [ "$1" = 'fwupdate' ] ; then
+		F_terminal_header ; F_terminal_padding
+		F_log_show "core config v${update_settings_version} updated for new router firmware version"
+		sleep 3
+	else
+		F_log "core config v${update_settings_version} updated with router config"
 	fi
 }
 
@@ -3627,17 +3635,13 @@ F_run_args() {
 		fi
 
 		# check if user has upgraded firmware and update config  saving to config avoids numerous nvram calls every run
-		if [ "$fw_build_no" = '386' ] || [ "$fw_build_no" = '384' ] ; then
-			if [ "$build_no" -gt "$fw_build_no" ] ; then
-				F_firmware_check fwupdate
-			elif [ "$build_no" = "$fw_build_no" ] && [ "$build_sub" -gt "$fw_build_sub" ] ; then
-				F_firmware_check fwupdate
-			elif [ "$build_no" = "$fw_build_no" ] && [ "$build_sub" = "$fw_build_sub" ] && [ "$build_extend" -gt "$fw_build_extend" ] ; then
+		if [ "$fw_build_no" != '374' ] ; then
+			if [ "$build_no" != "$fw_build_no" ] || [ "$build_sub" != "$fw_build_sub" ] || [ "$build_extend" != "$fw_build_extend" ] ; then
 				F_firmware_check fwupdate
 			fi
-		elif [ "$fw_build_no" = '374' ] ; then
+		else
 			johnsub="${build_extend:0:2}"
-			if [ "$johnsub" -gt "$fw_build_sub" ] ; then
+			if [ "$johnsub" != "$fw_build_sub" ] ; then
 				F_firmware_check fwupdate
 			fi
 		fi
