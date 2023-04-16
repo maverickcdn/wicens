@@ -3107,7 +3107,7 @@ F_terminal_header() {
 	clear
 	/bin/sed -n '2,11p' "$script_name_full"
 
-	if [ "$fw_build_no" = '384' ] || [ "$fw_build_no" = '386' ] ; then
+	if [ "$fw_build_no" != '374' ] ; then
 		printf "%5s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s_%s%b\n" "" "$tGRN" "$(F_date full)" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$fw_device_model" "$tCLR" "$tGRN" "$fw_build_no" "$fw_build_sub" "$fw_build_extend" "$tCLR"
 	else
 		printf "%2s%b%s%b -- %bver: %s%b -- %b%s%b FW ver: %b%s.%s%b\n" "" "$tGRN" "$(F_date full)" "$tCLR" "$tYEL" "$script_version" "$tCLR" "$tGRN" "$fw_device_model" "$tCLR" "$tGRN" "$fw_build_no" "$fw_build_extend" "$tCLR"
