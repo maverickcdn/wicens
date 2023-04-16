@@ -1,5 +1,8 @@
 # wicens change log
 -----------------
+## 3.41
+April 15 2023
+* ADDED: support for 388fw
 ## 3.40
 April 15 2023
 * FIXED: script lock broken when multiple notifications set
