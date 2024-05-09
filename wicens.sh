@@ -2763,7 +2763,7 @@ F_web_update_check() {
 
 	# start terminal timer wait for var to set and kill timer
 	F_time & time_pid=$!
-	git_version="$(F_git_get file | grep -F 'script_version=' | cut -d'=' -f2 | sed "s/'//g")"   # current version on git
+	git_version="$(F_git_get file | grep -Fm1 'script_version=' | cut -d'=' -f2 | sed "s/'//g")"   # current version on git
 	server_md5="$(F_git_get file | md5sum | awk '{print $1}')"
 	local_md5="$(md5sum "$script_name_full" | awk '{print $1}')"
 	sleep 2   # pretty terminal wait
@@ -2833,6 +2833,7 @@ F_local_script_update() {
 	fi
 
 	if [ "$status_email_cfg" = 1 ] && [ ! -f "$script_backup_file" ] ; then
+ 		F_terminal_padding
 		F_terminal_warning
 		F_terminal_check_fail "No backup file exists for your config." ; F_terminal_padding
 		F_terminal_show "Create a backup before upgrading?" ; F_terminal_padding
