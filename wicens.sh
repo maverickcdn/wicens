@@ -2869,7 +2869,7 @@ F_local_script_update() {
 	fi
 
 	F_terminal_padding
-	git_version="$(grep -F 'script_version=' "$script_name_full" | cut -d'=' -f2 | sed "s/'//g")"   # cut script version number from downloaded file
+	git_version="$(grep -Fm1 'script_version=' "$script_name_full" | cut -d'=' -f2 | sed "s/'//g")"   # cut script version number from downloaded file
 	F_terminal_show "Change log:"
 
 	case "$update_avail" in
