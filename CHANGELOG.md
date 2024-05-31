@@ -1,5 +1,11 @@
 # wicens change log
 -----------------
+## 4.01
+May 31 2024
+* CHANGED: prevent cron execution if router up less than 10 mins
+* CHANGED: F_getrealip don't sleep if grabbing WAN IP for the first time
+* CHANGED: misc wording for when new fw version found and password backup (not backed up when amtm enabled)
+
 ## 4.00
 May 8 2024
 * NEW: Router Reboot notification
