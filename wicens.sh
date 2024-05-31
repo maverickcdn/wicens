@@ -312,7 +312,8 @@ F_firmware_check() {
 			'fwupdate')
 				from_menu=1
 				F_terminal_header
-				F_log_show "Found new router firmware, core config v${update_settings_version} updated for new version ${build_full}_${build_extend}"
+				F_log_show "Found new firmware version installed on router"
+				F_log_terminal_ok "core config v${update_settings_version} updated for new fw version ${build_full}_${build_extend}"
 				F_replace_var fw_notify_state 0 "$config_src"   # reset Email notification after upgrading
 				F_wait 10
 				F_clean_exit reload
@@ -685,7 +686,10 @@ F_opt_backup_restore() {
 						F_terminal_check_fail"Error backing up password"
 					fi
 				else
-					F_terminal_check_fail "Couldn't find password to backup"
+					case "$amtm_import" in
+						0) F_terminal_check_fail "Couldn't find password to backup" ;;
+						1) F_terminal_check_ok "amtm import enabled, skipping password backup" ;;
+					esac
 				fi
 			else
 				# cleanup if smtp_isp_nopswd
@@ -2763,7 +2767,7 @@ F_web_update_check() {
 
 	# start terminal timer wait for var to set and kill timer
 	F_time & time_pid=$!
-	git_version="$(F_git_get file | grep -Fm1 'script_version=' | cut -d'=' -f2 | sed "s/'//g")"   # current version on git
+	git_version="$(F_git_get file | grep -Fm1 'script_version=' | cut -d'=' -f2 | sed "s/'//g")"
 	server_md5="$(F_git_get file | md5sum | awk '{print $1}')"
 	local_md5="$(md5sum "$script_name_full" | awk '{print $1}')"
 	sleep 2   # pretty terminal wait
@@ -2833,7 +2837,7 @@ F_local_script_update() {
 	fi
 
 	if [ "$status_email_cfg" = 1 ] && [ ! -f "$script_backup_file" ] ; then
- 		F_terminal_padding
+		F_terminal_padding
 		F_terminal_warning
 		F_terminal_check_fail "No backup file exists for your config." ; F_terminal_padding
 		F_terminal_show "Create a backup before upgrading?" ; F_terminal_padding
@@ -3107,7 +3111,7 @@ F_compare() {
 		F_getrealip
 	elif F_printfstr "$current_wan_ip" | F_private_ip ; then
 		F_terminal_check_fail "nvram WAN IP $current_wan_ip is a private IP, attempting update with getrealip.sh"   # don't log if WAN IP is private (double nat)
-		sleep "$(F_random_num 10)"   # good internet neighbor
+		[ "$building_settings" = 0 ] && sleep "$(F_random_num 10)"   # good internet neighbor
 		F_getrealip
 	fi
 
@@ -4157,6 +4161,8 @@ case "$run_option" in
 	;;
 
 	'cron') # cron call
+		# router up less than 10 mins don't execute cron check
+		F_uptime && [ "$router_uptime" -lt 600 ] && exit 0
 		F_ntp noterminal
 		F_replace_var cron_run_count "$((cron_run_count + 1))" "$config_src"
 		F_replace_var last_cron_run "$run_date" "$config_src"
