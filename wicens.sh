@@ -2886,7 +2886,7 @@ F_local_script_update() {
 
 	F_terminal_padding
 
-	F_log_terminal_ok "This install has been upgraded to version $script_version"
+	F_log_terminal_ok "This install has been upgraded to version $git_version"
 	F_terminal_check "Any key to continue..."
 	read -rsn1
 	F_clean_exit reset
