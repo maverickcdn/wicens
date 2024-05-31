@@ -22,8 +22,8 @@ export PATH="/sbin:/bin:/usr/sbin:/usr/bin:$PATH"
 start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in ms
 
 # START ###############################################################################################################
-script_version='4.00'
-script_ver_date='May 8 2024'
+script_version='4.01'
+script_ver_date='May 31 2024'
 current_core_config='4.0'   # version of core config (F_default_update_create)
 current_user_config='4.0'   # version of user config (F_default_user_create)
 
