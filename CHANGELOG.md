@@ -1,5 +1,9 @@
 # wicens change log
 -----------------
+## 4.02
+Jun 14 2024
+* ADDED: support for 3.0.0.6 FW for wifi7 devices (untested)
+
 ## 4.01
 May 31 2024
 * CHANGED: prevent cron execution if router up less than 10 mins
