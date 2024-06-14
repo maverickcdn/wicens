@@ -22,8 +22,8 @@ export PATH="/sbin:/bin:/usr/sbin:/usr/bin:$PATH"
 start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in ms
 
 # START ###############################################################################################################
-script_version='4.01'
-script_ver_date='May 31 2024'
+script_version='4.02'
+script_ver_date='June 14 2024'
 current_core_config='4.0'   # version of core config (F_default_update_create)
 current_user_config='4.0'   # version of user config (F_default_user_create)
 
@@ -219,7 +219,7 @@ F_uptime() {
 F_clean_exit() {
 	# save last seen uptime
 	F_uptime
-	[ "$router_uptime" -gt 1200 ] && F_replace_var router_reboot_uptime "$router_uptime" "$update_src"   # wait 20mins before saving uptime, if reboot notify enabled need to capture last known uptime
+	[ "$router_uptime" -gt 1200 ] && [ -f "$update_src" ] && F_replace_var router_reboot_uptime "$router_uptime" "$update_src"   # wait 20mins before saving uptime, if reboot notify enabled need to capture last known uptime
 
 	# pre lock removal restarts
 	case "$1" in
@@ -272,6 +272,8 @@ F_firmware_check() {
 			rm -r "$script_dir" 2> /dev/null
 			F_clean_exit
 		fi
+
+		[ "$(F_nvram firmver)" = '3.0.0.6' ] && return 0
 
 		case "$build_no" in
 			'386'|'388') return 0 ;;
