@@ -1,5 +1,9 @@
 # wicens change log
 -----------------
+## 4.03
+Jan 8 2025
+* CHANGED: added device_name to Email subject lines
+
 ## 4.02
 Jun 14 2024
 * ADDED: support for 3.0.0.6 FW for wifi7 devices (untested)
