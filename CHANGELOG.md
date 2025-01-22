@@ -1,5 +1,12 @@
 # wicens change log
 -----------------
+## 4.04
+January 22 2025
+* ADDED: crlf conversion for Email text file @molejado(GitHub)
+* CHANGED: example email instructions option fe
+* FIXED: removal of reboot uptime temp file
+* CHANGED: wording on non-existent backup file during script upgrade @jksmurf
+
 ## 4.03
 Jan 8 2025
 * CHANGED: added device_name to Email subject lines
