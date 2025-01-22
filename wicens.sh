@@ -22,8 +22,8 @@ export PATH="/sbin:/bin:/usr/sbin:/usr/bin:$PATH"
 start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in ms
 
 # START ###############################################################################################################
-script_version='4.03'
-script_ver_date='January 8 2025'
+script_version='4.04'
+script_ver_date='January 22 2025'
 current_core_config='4.0'   # version of core config (F_default_update_create)
 current_user_config='4.0'   # version of user config (F_default_user_create)
 
@@ -219,7 +219,7 @@ F_uptime() {
 F_clean_exit() {
 	# save last seen uptime
 	F_uptime
-	[ "$router_uptime" -gt 1200 ] && [ -f "$update_src" ] && F_replace_var router_reboot_uptime "$router_uptime" "$update_src"   # wait 20mins before saving uptime, if reboot notify enabled need to capture last known uptime
+	[ "$router_uptime" -gt 600 ] && [ -f "$update_src" ] && F_replace_var router_reboot_uptime "$router_uptime" "$update_src"   # wait 10mins before saving uptime, if reboot notify enabled need to capture last known uptime
 
 	# pre lock removal restarts
 	case "$1" in
@@ -2261,17 +2261,22 @@ F_amtm() {
 
 F_email_eg() {
 	F_terminal_header
-	F_terminal_show "Your script should form the text file containing the information below,"
-	F_terminal_show "To: should match wicens/amtm or the custom address passed on start"
-	F_terminal_show "Subject: can be customized"
-	F_terminal_show "Date: must be current date and time in RFC format use date -R command"
-	F_terminal_show "From Hello world! to </p>... html footer info replace with your"
-	F_terminal_show "custom Email message text"
+	F_terminal_show "${tYEL}===== wicens Email instructions =====${tCLR}   E||e to exit"
+	F_terminal_padding
+	F_terminal_show "Your script should create the text file containing the information below."
+	F_terminal_show "Edit the HTML tags to suit your needs"
+	F_terminal_padding
+	F_terminal_show "To: match wicens/amtm To: address or custom To: address passed on start"
+	F_terminal_show "Subject: Place your subject text here"
+	F_terminal_show "Date: Current date/time in RFC format use date -R command ie. $(date -R)"
+	F_terminal_show "Place your Email body text between <p style=\"color:...   and"
+	F_terminal_show "</p></a></pre></body></html> footer"
 	F_terminal_padding
 
+	F_printf "$tGRN"
 	# header
 	F_printfstr "From: \"$user_email_from\" <$user_login_addr>"
-	F_printfstr "To: \"$user_email_from\" <$user_send_to_addr>"
+	F_printfstr "To: \"wicens user\" <$user_send_to_addr>"
 	F_printfstr "Subject: My custom script Email Subject"
 	F_printfstr "Date: $(F_date r)"
 
@@ -2282,6 +2287,7 @@ F_email_eg() {
 	F_printfstr ''
 	F_printfstr '<!DOCTYPE html><html><body><pre><a>'
 	F_printfstr '<p style="color:black; font-family:monospace; font-size:100%;">'
+	F_printf "${tCLR}${tPUR}"
 
 	# body
 	F_printfstr "Hello world!"
@@ -2296,9 +2302,11 @@ F_email_eg() {
 	F_printfstr "A message from wicens script v$script_version on your $fw_device_model"
 	F_email_seperator
 	F_printfstr ''
+	F_printf "${tCLR}${tGRN}"
 
 	# html footer
 	F_printfstr '</p></a></pre></body></html>'
+	F_printf "$tCLR"
 
 	F_menu_exit
 } # email_eg
@@ -2523,7 +2531,7 @@ F_reboot_email_msg() {
 	user_pswd=''
 	rm -f "$reboot_email"
 	rm -f "$wicens_reboot_retry"
-	rm -f '/tmp/wicens_reboot_uptime'
+	rm -f '/tmp/wicens_reboot_uptime.tmp'
 	F_log_terminal_ok "Finished sending router reboot Email notification"
 	F_replace_var reboot_notify_state 0 "$update_src"
 	return 0
@@ -2693,11 +2701,13 @@ F_send_email() {
 } # send_email
 
 F_send_format_isp() {
+	unix2dos "$mail_file"
 	/usr/sbin/sendmail > "$mail_log" 2>&1 < "$mail_file" \
 	-S "$user_smtp_server" -f "$user_login_addr" -t "$user_send_to_addr" -v
 } # send_format_isp
 
 F_send_format_start_tls() {
+	unix2dos "$mail_file"
 	/usr/sbin/sendmail >> "$mail_log" 2>&1 < "$mail_file" \
 	-H "exec /usr/sbin/openssl s_client -quiet \
 	-starttls smtp \
@@ -2708,6 +2718,7 @@ F_send_format_start_tls() {
 } # send_format_tls
 
 F_send_format_tls_v1() {
+	unix2dos "$mail_file"
 	/usr/sbin/sendmail >> "$mail_log" 2>&1 < "$mail_file" \
 	-H "exec /usr/sbin/openssl s_client -quiet \
 	-tls1 -starttls smtp \
@@ -2717,6 +2728,7 @@ F_send_format_tls_v1() {
 } # send_format_tls1
 
 F_send_format_plain_auth() {
+	unix2dos "$mail_file"
 	/usr/sbin/sendmail >> "$mail_log" 2>&1 < "$mail_file" \
 	-t -S "$user_smtp_server" -f "$user_from_addr" "$user_send_to_addr" -au"$user_login_addr" -ap"$user_pswd" -v
 } # send_format_plain_auth
@@ -2729,6 +2741,7 @@ F_send_format_ssl() {
 		--mail-from "$user_from_addr" --mail-rcpt "$user_send_to_addr" \
 		--upload-file "$mail_file" \
 		--ssl-reqd \
+		--crlf \
 		--user "$user_login_addr:$user_pswd" $ssl_flag
 	else
 		curl >> "$mail_log" 2>&1 \
@@ -2738,6 +2751,7 @@ F_send_format_ssl() {
 		--mail-rcpt "$user_send_to_cc" \
 		--upload-file "$mail_file" \
 		--ssl-reqd \
+		--crlf \
 		--user "$user_login_addr:$user_pswd" $ssl_flag
 	fi
 } # send_format_ssl
@@ -2842,7 +2856,7 @@ F_local_script_update() {
 		F_terminal_padding
 		F_terminal_warning
 		F_terminal_check_fail "No backup file exists for your config." ; F_terminal_padding
-		F_terminal_show "Create a backup before upgrading?" ; F_terminal_padding
+		F_terminal_show "Continue upgrade without a backup?" ; F_terminal_padding
 		F_terminal_check "C||c to continue upgrade - Any key to return to Main Menu"
 		read -rsn1 updatebackupwait
 		case "$updatebackupwait" in
