@@ -2701,13 +2701,13 @@ F_send_email() {
 } # send_email
 
 F_send_format_isp() {
-	unix2dos "$mail_file"
+#	unix2dos "$mail_file"
 	/usr/sbin/sendmail > "$mail_log" 2>&1 < "$mail_file" \
 	-S "$user_smtp_server" -f "$user_login_addr" -t "$user_send_to_addr" -v
 } # send_format_isp
 
 F_send_format_start_tls() {
-	unix2dos "$mail_file"
+#	unix2dos "$mail_file"
 	/usr/sbin/sendmail >> "$mail_log" 2>&1 < "$mail_file" \
 	-H "exec /usr/sbin/openssl s_client -quiet \
 	-starttls smtp \
@@ -2718,7 +2718,7 @@ F_send_format_start_tls() {
 } # send_format_tls
 
 F_send_format_tls_v1() {
-	unix2dos "$mail_file"
+#	unix2dos "$mail_file"
 	/usr/sbin/sendmail >> "$mail_log" 2>&1 < "$mail_file" \
 	-H "exec /usr/sbin/openssl s_client -quiet \
 	-tls1 -starttls smtp \
@@ -2728,7 +2728,7 @@ F_send_format_tls_v1() {
 } # send_format_tls1
 
 F_send_format_plain_auth() {
-	unix2dos "$mail_file"
+#	unix2dos "$mail_file"
 	/usr/sbin/sendmail >> "$mail_log" 2>&1 < "$mail_file" \
 	-t -S "$user_smtp_server" -f "$user_from_addr" "$user_send_to_addr" -au"$user_login_addr" -ap"$user_pswd" -v
 } # send_format_plain_auth
