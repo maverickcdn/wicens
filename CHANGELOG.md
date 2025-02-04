@@ -1,5 +1,22 @@
 # wicens change log
 -----------------
+## 4.10
+Feb 2025
+* ADDED: reboot notification has down time between power loss-reboot *approx
+* ADDED: logging to independent file in wicens directory (maxsize: 200KB) option z
+* ADDED: check custom script file exists w/cron (if missing we spam log with cron)
+* ADDED: Email test can now send wanip/firmware update/reboot Email messages
+* FIXED: script lock remove stale without relying on same call type running again
+* FIXED: status display of multiline custom email text
+* FIXED: ehlo in curl RFC 5321
+* FIXED: F_internet_ping cycles (15 total attempts)
+* FIXED: HTML structure in Emails
+* FIXED: misc minor bug fixes
+* CHANGED: check for dual wan on wanip change enable
+* CHANGED: lock_age_max to 3mins (internet up)
+* CHANGED: misc tweaks(hidden options/log time) and wording
+* CHANGED: amtm style terminal exit (logo only)
+
 ## 4.04
 January 22 2025
 * ADDED: crlf conversion for Email text file @molejado(GitHub)
