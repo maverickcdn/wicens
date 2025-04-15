@@ -4319,7 +4319,7 @@ case "$run_option" in
 		F_ntp noterminal
 		case "$cron_option" in
 			'1') ;;
-			*) F_clean_exit  ;; # update_conf allows disabling cron checks but keeps cron entries
+			'0') F_clean_exit ;; # update_conf allows disabling cron checks but keeps cron entries
 		esac
 		F_replace_var cron_run_count "$((cron_run_count + 1))" "$config_src"
 		F_replace_var last_cron_run "$run_date" "$config_src"
