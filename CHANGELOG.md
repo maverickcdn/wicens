@@ -1,7 +1,18 @@
 # wicens change log
 -----------------
+## 4.11
+April 10 2025
+* ADDED: cron fully customizable in wicens_update_conf.wic
+* ADDED: cron on/off in wicens_update_conf.wic (cron_option 1=on 0=off) (off: cron entries will still be created, script will immediately exit on cron runs)
+* NOTE: disabling or editing cron beyond 20 min (default:11min) intervals is not recommended
+* ADDED: can disable jffs independent logging in wicens_update_conf.wic (script_log 1=on 0=off)
+* ADDED: can change independent log location in wicens_update_conf.wic (script_log_loc)
+* CHANGED: don't write WAN IP after Email settings creation
+* CHANGED: check if hardware is in router mode for WAN IP notifications
+* CHANGED: added menu option for hidden options/other minor appearance tweaks
+* CHANGED: core config from v4.1 to v4.2 for cron/logging options
 ## 4.10
-Feb 2025
+Feb 3 2025
 * ADDED: reboot notification has down time between power loss-reboot *approx
 * ADDED: logging to independent file in wicens directory (maxsize: 200KB) option z
 * ADDED: check custom script file exists w/cron (if missing we spam log with cron)
