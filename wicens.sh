@@ -22,9 +22,9 @@ export PATH="/sbin:/bin:/usr/sbin:/usr/bin:$PATH"
 start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in ms
 
 # START ###############################################################################################################
-script_version='4.10'
-script_ver_date='Feb 3 2025'
-current_core_config='4.1'   # version of core config (F_default_update_create)
+script_version='4.11'
+script_ver_date='April 14 2025'
+current_core_config='4.2'   # version of core config (F_default_update_create)
 current_user_config='4.0'   # version of user config (F_default_user_create)
 
 script_name="$(basename "$0")"
@@ -51,7 +51,6 @@ wicens_update_retry='/tmp/wicens_update.retry'   # retry count file for script u
 wicens_fw_retry='/tmp/wicens_fw.retry'   # retry count file for fw update notification
 wicens_wanip_retry='/tmp/wicens_wanip.retry'   # retry count file for wan ip change notification
 wicens_reboot_retry='/tmp/wicens_reboot.retry'   # retry count file for reboot notification
-script_log_loc="${script_dir}/wicens.log"   # script independent log
 cred_loc="${script_dir}/.wicens_cred.enc"
 cred_loc_bak="${cred_loc}bak"
 amtm_email_conf='/jffs/addons/amtm/mail/email.conf'
@@ -119,7 +118,15 @@ F_menu_disabled() { F_terminal_show "$1 ${tRED}Disabled${tCLR}" ;}   # menu disa
 F_edit() { F_terminal_show "$1 ${tGRN}${2}${tCLR}" ;}   # edit menu
 F_terminal_warning() { printf '%b%48s\n%48s\n%48s%b\n\n' "$tRED" "#################" "#    WARNING    #" "#################" "$tCLR" ;}   # terminal warning
 F_fail_entry() { F_terminal_check_fail "Invalid entry, any key to retry" && read -rsn1 && F_terminal_erase && continue ;}   # terminal input invalid entry
-F_log() { printf '%s' "$(F_date f) " >> "$script_log_loc" ; logger -st "wicens[$$]" "$(F_printfstr "${run_option} : $1" )" 2>> "$script_log_loc"  ;}   # logging
+F_log() {
+	case "$script_log" in
+		'1')
+			printf '%s' "$(F_date f) " >> "$script_log_loc"
+			logger -st "wicens[$$]" "$(F_printfstr "${run_option} : $1" )" 2>> "$script_log_loc"
+		;;
+		*) logger -t "wicens[$$]" "$(F_printfstr "${run_option} : $1" )" ;;
+	esac
+}   # logging
 F_log_show() { F_log "$1" ; F_terminal_show "$1" ;}   # log and print formatted
 F_log_terminal_ok() { F_terminal_check_ok "$1" ; F_log "$1" ;}   # log [ OK ]
 F_log_terminal_fail() { F_terminal_check_fail "$1" ; F_log "$1" ;}   # log [FAIL]
@@ -240,7 +247,7 @@ F_clean_exit() {
 	esac
 
 	case "$run_option" in
-		'tty') F_terminal_header exit  # amtm style exit, prevent other call types having terminal messages cleared
+		'tty') [ "$1" != 'error' ] && F_terminal_header exit  # amtm style exit, prevent other call types having terminal messages cleared
 	esac
 
 	# remove all potential locks
@@ -353,7 +360,9 @@ F_firmware_check() {
 						F_terminal_check_ok "Created default user config v${current_user_config} for script v$script_version in $script_dir"
 						F_terminal_check_ok "Created default core config v$current_core_config for script v$script_version in $script_dir"
 						F_log_terminal_ok "Updated core config v${update_settings_version} with router firmware information"
-						F_menu_exit
+						F_terminal_check "Any key to continue to Main Menu"
+						read -rsn1
+						F_clean_exit reset
 					;;
 				esac
 			;;
@@ -501,15 +510,19 @@ F_default_update_create() {
 		F_printfstr "router_reboot_downtime="
 		F_printfstr "fw_nvram_check_epoch=0"
 		F_printfstr "# USER CAN EDIT BELOW SETTINGS ###########################"
-		F_printfstr "update_period=172800   # period between script update checks default:48hrs"
-		F_printfstr "wan_history_count=5   # number of historcal IPs in Email message"
-		F_printfstr "retry_wait_period=14400   # period between failed email retries default:4 hrs"
-		F_printfstr "max_email_retry=3   # max cron run retries before waiting for retry_period default:3"
-		F_printfstr "cron_check_freq=11   # minutes between cron checks default:11"
-		F_printfstr "wan_event_wait=40   # sleep before compare after wan-event call default:40"
-		F_printfstr "reboot_notify_wait=20   # sleep before reboot notify services-start call default:20"
-		F_printfstr "max_fw_nvram_check=600   # fw checks to nvram only every 10 minutes with tty default:600"
-		F_printfstr "dual_wan_check=1   # getrealip abort if dual wan enabled default:1"
+		F_printfstr "update_period=172800   # period between script update checks  default:172800 (48 hrs)"
+		F_printfstr "wan_history_count=5   # number of historcal IPs in Email message  default:5"
+		F_printfstr "retry_wait_period=14400   # period between failed email retries  default:14400 (4 hrs)"
+		F_printfstr "max_email_retry=3   # max cron run retries before waiting for retry_period  default:3"
+		F_printfstr "cron_check_freq=11   # minutes between cron checks  default:11 (mins)"
+		F_printfstr "cron_string=\"*/\${cron_check_freq} * * * * $script_name_full cron\""
+		F_printfstr "cron_option=1   # run cron  default:1 (on)"
+		F_printfstr "script_log=1   # independent wicens logging  default:1 (on)"
+		F_printfstr "script_log_loc=\"${script_dir}/wicens.log\"   # script independent log  default:/jffs/addons/wicens/wicens.log"
+		F_printfstr "wan_event_wait=40   # sleep before compare after wan-event call  default:40"
+		F_printfstr "reboot_notify_wait=20   # sleep before reboot notify services-start call  default:20 (secs)"
+		F_printfstr "max_fw_nvram_check=600   # fw checks to nvram only every 10 minutes with tty  default:600"
+		F_printfstr "dual_wan_check=1   # getrealip abort if dual wan enabled  default:1"
 		F_printfstr "###########################################################"
 		F_printfstr "# add or change list of test sites in below function for internet test (9 max)"
 		F_printfstr "F_test_sites() {"
@@ -661,14 +674,14 @@ F_opt_about() {
 		F_printfstr "${script_dir}/user_script.log                                                " ; F_printfstr ''
 
 		F_printfstr "Hidden menu options                                                          "
-		F_printfstr "1f - forces build_settings menu                                              "
+		F_printfstr "1f - forces build_settings menu (if amtm enabled)                            "
 		F_printfstr "fl - remove mail log file                                                    "
 		F_printfstr "vv - list out all settings from config files                                 "
 		F_printfstr "fr - remove any found update                                                 "
 		F_printfstr "fe - show example Email text file for using wicens as Email forwarder        "
 		F_printfstr "ul - show log from user script output when calling script on WAN IP change   "
 		F_printfstr "rc - reset core config for notification controls, not user config            "
-		F_printfstr "dwd - disable/enable Dual WAN check                                          " ; F_printfstr ''
+		F_printfstr "dw - disable/enable Dual WAN check                                           " ; F_printfstr ''
 
 		F_printfstr "Every Sunday@6pm the script will log the # of times it ran with wan-event.   " ; F_printfstr ''
 
@@ -1504,9 +1517,7 @@ F_notify_firmware() {
 			[ "$2" != 'un' ] && F_log_terminal_ok "Disabled Firmware update Email notifcation"
 
 			if [ "$user_wanip_notification" = 0 ] && [ "$user_reboot_notification" = 0 ] && [ "$user_update_notification" = 0 ] ; then
-				if [ "$2" = 'un' ] ; then
-					F_auto_run remove2 > /dev/null 2>&1
-				else
+				if [ "$2" != 'un' ] ; then
 					F_auto_run remove2
 				fi
 			fi
@@ -1603,9 +1614,7 @@ F_notify_reboot() {
 			[ "$2" != 'un' ] && F_log_terminal_ok "Disabled router reboot Email notification"
 
 			if [ "$user_wanip_notification" = 0 ] && [ "$user_fw_update_notification" = 0 ] && [ "$user_update_notification" = 0 ] ; then
-				if [ "$2" = 'un' ] ; then
-					F_auto_run remove2 > /dev/null 2>&1
-				else
+				if [ "$2" != 'un' ] ; then
 					F_auto_run remove2
 				fi
 			fi
@@ -1678,6 +1687,13 @@ F_notify_wanip() {
 		;;
 
 		'create')
+			if [ "$(F_nvram sw_mode)" != 1 ] ; then
+				F_terminal_check_fail "Cannot enable WAN IP notifications, this hardware not in 'router' mode"
+				F_menu_exit
+			fi
+			building_settings=1
+			! F_compare && F_script_wan_update
+			building_settings=0
 			F_replace_var user_wanip_notification 1 "$config_src"
 			F_auto_run createall
 			F_log_terminal_ok "Enabled WAN IP change Email notification"
@@ -2111,18 +2127,6 @@ F_build_settings() {
 	created_date="$(F_date f)"
 	F_terminal_header
 
-	if [ -z "$saved_wan_ip" ] ; then
-		F_log_terminal_fail "No saved WAN IP found, attempting to write current to this script"
-		F_internet_check
-		F_compare
-		F_script_wan_update
-		source "$config_src"
-		if F_printfstr "$saved_wan_ip" | F_cgnat_ip ; then
-			F_terminal_warning
-			F_log_show "The found WAN IP $saved_wan_ip is a CGNAT address"
-		fi
-	fi
-
 	F_status | sed -n '/Current saved WAN/,/Script install date/p'
 
 	F_terminal_check "Any key to continue to view sample Email output"
@@ -2278,7 +2282,6 @@ F_amtm() {
 			F_replace_var amtm_import 1 "$config_src"
 			F_replace_var created_date "$(F_date f)" "$config_src"
 			F_log_terminal_ok "amtm Email settings enabled"
-			! F_compare && F_script_wan_update
 			F_amtm load
 			building_settings=0
 			return 0
@@ -2658,7 +2661,7 @@ F_wanip_email_msg() {
 			F_printfpre "            WAN IP history most recent first"
 			F_printfpre "    Time Found              IP             Leased Time"
 			F_email_seperator # -----
-			F_printfpre "Jan 01 2025 00:12:34  123.145.165.178   11d 12h 13m 14sec"
+			F_printfpre "Jan 01 2025 00:12:34  123.145.167.189   11d 12h 13m 14sec"
 		fi
 
 		F_email_seperator # -----
@@ -3242,7 +3245,7 @@ F_getrealip() {
 		if [ "$current_wan_ip" = '0.0.0.0' ] || [ -z "$current_wan_ip" ] ; then
 			if [ "$getrealip_cnt" -eq 0 ] ; then
 				F_log_terminal_fail "Error retrieving WAN IP 5 times, aborting"
-				F_clean_exit
+				F_clean_exit error
 			else
 				reattempt="$(F_random_num 15)"
 				F_terminal_check_fail "Error retrieving WAN IP with getrealip.sh, attempt again in $reattempt secs"
@@ -3312,7 +3315,7 @@ F_cru() {
 		;;
 
 		'create')
-			cru a wicens "*/${cron_check_freq} * * * * $script_name_full cron"
+			cru a wicens "${cron_string}"
 			F_log_terminal_ok "Added entry in cron(cru) with ${cron_check_freq}m interval"
 		;;
 
@@ -3347,7 +3350,7 @@ F_serv_start() {
 				fi
 
 				{
-					F_printfstr "/usr/sbin/cru a wicens \"*/${cron_check_freq} * * * * $script_name_full cron\"   # added by wicens $(F_date r)"
+					F_printfstr "/usr/sbin/cru a wicens \"${cron_string}\"   # added by wicens $(F_date r)"
 					F_printfstr "/usr/bin/logger -t \"services-start[\$\$]\" \"Added wicens entry to cron(cru)\"   # added by wicens $(F_date r)"
 				} >> /jffs/scripts/services-start
 
@@ -3356,7 +3359,7 @@ F_serv_start() {
 				{
 					F_printfstr "#!/bin/sh"
 					F_printfstr "# Created by $script_name_full for WAN IP change notification $(F_date r)"
-					F_printfstr "/usr/sbin/cru a wicens \"*/${cron_check_freq} * * * * $script_name_full cron\"   # added by wicens $(F_date r)"
+					F_printfstr "/usr/sbin/cru a wicens \"${cron_string}\"   # added by wicens $(F_date r)"
 					F_printfstr "/usr/bin/logger -t \"services-start[\$\$]\" \"Added wicens entry to cron(cru)\"   # added by wicens $(F_date r)"
 				} > /jffs/scripts/services-start
 
@@ -3939,12 +3942,17 @@ F_main_menu() {
 	else F_terminal_show "Check for script update------| F||f"
 	fi
 
+	F_terminal_show "Other options----------------| H||h"
 	F_terminal_show "About script-----------------| A||a"
 	F_terminal_show "Exit-------------------------| E||e"
 
 	[ "$from_menu" = 0 ] && stop_time="$(awk '{print $1}' < /proc/uptime)"
 	load_time="$(F_printf "$start_time $stop_time" | awk '{diff = $2 - $1; if (diff >= 10) printf "10s+"; else printf "%.2f", diff}')"
 	F_printf "[${tGRN}${load_time}${tCLR}] Menu load time"
+
+	case "$1" in
+		'hidden') F_terminal_padding ; F_opt_about | sed -n '90,98p' ;;
+	esac
 
 	F_terminal_padding
 	F_terminal_check "Selection : "
@@ -3981,7 +3989,17 @@ F_main_menu() {
 			esac
 		;;
 		l|L) F_opt_mail_log ;;
-		m|M) if ! F_compare ; then [ -z "$saved_wan_ip" ] && building_settings=1 ; F_script_wan_update ; fi ; F_menu_exit ;;
+		m|M)
+			if [ "$(F_nvram sw_mode)" != 1 ] ; then
+				F_terminal_check_fail "Cannot perform WAN IP compare, this hardware not in 'router' mode"
+				F_menu_exit
+			elif ! F_compare ; then
+				building_settings=1
+				F_script_wan_update
+				building_settings=0
+			fi
+			F_menu_exit
+		;;
 		n|N) F_opt_count ;;
 		r|R) F_opt_reset ;;
 		s|S) F_opt_sample ;;
@@ -4002,8 +4020,8 @@ F_main_menu() {
 		fl) [ -f "$mail_log" ] && rm -f "$mail_log" && F_terminal_check_ok "Reset Email curl/sendmail log output" ; F_menu_exit ;;
 		ul) [ -f "${script_dir}/user_script.log" ] && clear && cat "${script_dir}/user_script.log" ; F_menu_exit ;;
 		fe) F_email_eg ;;
-		rc) F_default_update_create ; config_updated=1 ; fw_nvram_check_diff=666 ; source "$update_src" ; F_firmware_check ; F_terminal_check_ok "wicens update(core) config reset, return to menu to auto update config" ; F_menu_exit ;;
-		dwd)
+		rc) F_default_update_create ; config_updated=1 ; fw_nvram_check_diff=666 ; source "$update_src" ; F_firmware_check ; F_terminal_check_ok "wicens update(core) config reset" ; F_menu_exit ;;
+		dw)
 			case "$dual_wan_check" in
 				1)
 					F_replace_var dual_wan_check 0 "$update_src"
@@ -4016,7 +4034,7 @@ F_main_menu() {
 			esac
 			F_menu_exit
 		;;
-		h) F_opt_about | sed -n '90,98p' ; F_menu_exit ;;
+		h|H) from_menu=2 ; F_main_menu hidden ;;
 		*)
 			from_menu=2
 			[ -n "$selection" ] && F_terminal_check_fail "${tRED}$selection${tCLR} is an invalid selection, any key to retry" && read -rsn1
@@ -4299,6 +4317,10 @@ case "$run_option" in
 		# router up less than 10 mins don't execute cron check
 		F_uptime && [ "$router_uptime" -lt 600 ] && exit 0
 		F_ntp noterminal
+		case "$cron_option" in
+			'1') ;;
+			*) F_clean_exit  # update_conf allows disabling cron checks but keeps cron entries
+		esac
 		F_replace_var cron_run_count "$((cron_run_count + 1))" "$config_src"
 		F_replace_var last_cron_run "$run_date" "$config_src"
 
