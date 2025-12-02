@@ -1,5 +1,25 @@
 # wicens change log
 -----------------
+## 4.12
+December 2 2025
+* ADDED: custom subjects for all email types wan/reboot/firmware/update @ziiiiiiiii GitHub
+* ADDED: custom line of text in EMail body for all types wan/reboot/firmware/update
+* ADDED: custom Email message 'to name' (default: wicens user)
+* ADDED: support for non-router mode (AP) - ministun
+* ADDED: wan ip monitoring for use with script calling on wan ip change (no WAN IP email enabled reqd)
+* ADDED: sample Email available for WAN IP/Firmware/Reboot
+* CHANGED: custom script on WAN IP change is now called with current_wan_ip as argument @hribcek GitHub
+* CHANGED: custom script checked for crlf/executable
+* CHANGED: disable terminal word wrap
+* CHANGED: custom script cleanup if WAN IP change monitor not enabled
+* CHANGED: uninstall - remove script log from non default location
+* CHANGED: user config to v4.1 core config to v4.3
+* CHANGED: changed some command quoting to fix function list parsing in notepad++
+* CHANGED: some case commands back to test statements for debugging
+* CHANGED: moved F_alias into F_firmware check for install msg
+* CHANGED: status pages v,vv are now multipage
+* FIXED: reboot uptime/downtime during retries
+
 ## 4.11
 April 10 2025
 * ADDED: cron fully customizable in wicens_update_conf.wic
@@ -11,6 +31,7 @@ April 10 2025
 * CHANGED: check if hardware is in router mode for WAN IP notifications
 * CHANGED: added menu option for hidden options/other minor appearance tweaks
 * CHANGED: core config from v4.1 to v4.2 for cron/logging options
+
 ## 4.10
 Feb 3 2025
 * ADDED: reboot notification has down time between power loss-reboot *approx
