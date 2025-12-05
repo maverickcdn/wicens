@@ -1,5 +1,9 @@
 # wicens change log
 -----------------
+## 4.13
+December 4 2025
+* FIXED: wan-event creation (fw_sw_mode)
+
 ## 4.12
 December 2 2025
 * ADDED: custom subjects for all email types wan/reboot/firmware/update @ziiiiiiiii GitHub
