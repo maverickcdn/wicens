@@ -3874,7 +3874,7 @@ F_auto_run() {
 			if [ "$status_cru" = 0 ] ; then F_cru create ; else F_terminal_check_ok "cron(cru) entry already enabled" ; fi
 			if [ "$status_srvstrt" = 0 ] ; then F_serv_start create ; else F_terminal_check_ok "services-start entry already enabled" ; fi
 			if [ "$status_wanevent" = 0 ] ; then
-				if [ $"fw_sw_mode" = 1 ]
+				if [ "$fw_sw_mode" = 1 ]
 				then F_wan_event create   # only enable wan-event if in router mode
 				else F_terminal_check_ok "Not in router mode, skipping wan-event"
 				fi
