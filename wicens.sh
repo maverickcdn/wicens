@@ -23,8 +23,8 @@ start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in m
 printf '\033[?7l'   # disable terminal word wrap
 
 # START ###############################################################################################################
-script_version='4.12'
-script_ver_date='Dec 2 2025'
+script_version='4.13'
+script_ver_date='Dec 4 2025'
 current_core_config='4.3'   # version of core config (F_default_update_create)
 current_user_config='4.1'   # version of user config (F_default_user_create)
 
