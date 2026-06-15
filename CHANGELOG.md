@@ -1,5 +1,10 @@
 # wicens change log
 -----------------
+## 4.14
+June 15 2026
+* ADDED: amtm requirement support
+* CHANGED: ip_regex made more strict
+
 ## 4.13
 December 4 2025
 * FIXED: wan-event creation (fw_sw_mode)
