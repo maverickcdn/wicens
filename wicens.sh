@@ -23,8 +23,8 @@ start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in m
 printf '\033[?7l'   # disable terminal word wrap
 
 # START ###############################################################################################################
-script_version='4.13'
-script_ver_date='Dec 4 2025'
+script_version='4.14'
+script_ver_date='June 15 2026'
 current_core_config='4.3'   # version of core config (F_default_update_create)
 current_user_config='4.1'   # version of user config (F_default_user_create)
 
@@ -44,8 +44,8 @@ fw_email='/tmp/wicens_fwmail.txt'   # firmware update notification mail text
 update_email='/tmp/wicens_updatemail.txt'   # script update notification mail text
 wanip_email='/tmp/wicens_wanipemail.txt'   # wanip change notification mail text
 mail_log="${script_dir}/wicens_email.log"   # log file for sendmail/curl
-script_lock="/tmp/wicens_lock.$run_option"   # script temp lock file by argument
-internet_lock="/tmp/wicens_internetlock.$run_option"   # internet check lock, prevents killing processes waiting for internet
+script_lock="/tmp/wicens_lock.${run_option}"   # script temp lock file by argument
+internet_lock="/tmp/wicens_internetlock.${run_option}"   # internet check lock, prevents killing processes waiting for internet
 wicens_send_retry='/tmp/wicens_send.retry'   # retry count file for send option
 wicens_send_copy='/tmp/wicens_user_email.txt'   # backup of email for send option in retries
 wicens_update_retry='/tmp/wicens_update.retry'   # retry count file for script update notification
@@ -59,7 +59,7 @@ amtm_cred_loc='/jffs/addons/amtm/mail/emailpw.enc'
 amtm_d='L3Vzci9zYmluL29wZW5zc2wgMj4vZGV2L251bGwgYWVzLTI1Ni1jYmMgLXBia2RmMiAtZCAtaW4gL2pmZnMvYWRkb25zL2FtdG0vbWFpbC9lbWFpbHB3LmVuYyAtcGFzcyBwYXNzOmRpdGJhYm90LGlzb2kK'
 user_d='L3Vzci9zYmluL29wZW5zc2wgZW5jIC1tZCBzaGE1MTIgLXBia2RmMiAtYWVzLTI1Ni1jYmMgLWQgLWEgLXBhc3MgcGFzczoiJChGX252cmFtIGJvYXJkbnVtIHwgL2Jpbi9zZWQgcy86Ly9nKSIK'
 user_e='L3Vzci9zYmluL29wZW5zc2wgZW5jIC1tZCBzaGE1MTIgLXBia2RmMiAtYWVzLTI1Ni1jYmMgLWEgLXNhbHQgLXBhc3MgcGFzczoiJChGX252cmFtIGJvYXJkbnVtIHwgL2Jpbi9zZWQgcy86Ly9nKSIgfCB0ciAtZCAiXG4iCg=='
-ip_regex='([0-9]{1,3}[\.]){3}[0-9]{1,3}'
+ip_regex='^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$'
 current_wan_ip=''
 building_settings=0
 test_mode=0
@@ -108,7 +108,7 @@ F_date() {
 F_terminal_show() { F_printf "$tTERMHASH $1" ;}   # [~~~~]
 F_terminal_padding() { F_printfstr '' ;}   # blank line
 F_terminal_separator() { F_printfstr '--------------------------------------------------------------------------------' ;}   # 80 column
-F_terminal_erase() { printf '%b' "$tBACK$tERASE" ;}   # erase previous line
+F_terminal_erase() { printf '%b' "${tBACK}${tERASE}" ;}   # erase previous line
 F_terminal_entry() { printf '%b' "$tTERMHASH $1" ;}   # [~~~~] no new line
 F_terminal_check() { printf '%b' "$tCHECK $1" ;}   # [WAIT] no new line
 F_terminal_check_ok() { F_printf "\r${tERASE}${tCHECKOK} $1" ;}   # [ OK ]
@@ -204,7 +204,7 @@ F_wait() {
 	F_terminal_padding
 	wait_time="$1"
 	while [ "$wait_time" -ne '0' ] ; do
-		F_term_waitdel "Loading menu in $wait_time secs... any key to skip "
+		F_term_waitdel "Loading menu in ${wait_time} secs... any key to skip "
 		wait_time=$((wait_time - 1))
 		waiting=zzz
 		read -rsn1 -t1 waiting
@@ -377,8 +377,8 @@ F_firmware_check() {
 						F_printf "[ ${tGRN}HI${tCLR} ] ${tYEL}===== Welcome to wicens the WAN IP change Email notification script =====${tCLR}"
 						F_terminal_padding
 						F_terminal_check_ok "Created $script_dir directory"
-						F_terminal_check_ok "Created default user config v${current_user_config} for script v$script_version in $script_dir"
-						F_terminal_check_ok "Created default core config v$current_core_config for script v$script_version in $script_dir"
+						F_terminal_check_ok "Created default user config v${current_user_config} for script v${script_version} in ${script_dir}"
+						F_terminal_check_ok "Created default core config v$current_core_config for script v${script_version} in ${script_dir}"
 						F_log_terminal_ok "Updated core config v${update_settings_version} with router firmware information"
 						F_alias
 						F_terminal_padding
@@ -4741,6 +4741,11 @@ F_ntp() {
 #######################################################################################################################
 
 case "$run_option" in
+	'amtmupdate')
+		[ "$2" = 'check' ] && exit 1   # amtm update disable
+		exit 1
+	;;
+
 	'reload') # reload menu without ntp/lock/alias/fw check etc
 		run_date="$(F_date r)"
 		run_epoch="$(F_date s)"
