@@ -1,31 +1,30 @@
-        WICENS - WAN IP Change Email Notification Script
+## WICENS - WAN IP Change Email Notification Script
 
 This script when configured has the ability to send Email notifications for
-Option 3 - WAN IP Change (IPv4 only,DualWAN disabled)
-Option 4 - Router reboot events
-Option 5 - Firmware Updates (runs with built-in firmware notification check)
-Option 6 - Script Updates (checks every 48hrs when enabled)
-Script can call your own script when WAN IP change occurs (Option 7)
-WAN IP change monitoring only Option 1 (auto enabled with Option 3)
-Script can also be used to send your own generated Email files see
-forwarder instructions further below
+* Option 3 - WAN IP Change (IPv4 only,DualWAN disabled)
+* Option 4 - Router reboot events
+* Option 5 - Firmware Updates (runs with built-in firmware notification check)
+* Option 6 - Script Updates (checks every 48hrs when enabled)
+* Option 7 - can call your own script when WAN IP change occurs
+* Option 2 - WAN IP change monitoring only (auto enabled with Option 3)
+* Script can also be used to send your own generated Email files see forwarder instructions further below
 
 Supports GMail, Hotmail, Outlook, ISP based Email
 
 Supports AsusWRT-Merlin built-in amtm Email configuration import
 
 Script will function in Double NAT scenarios but does not support Dual WAN
-Dual WAN check can be on/off by entering option dwd (default: on)
+Dual WAN check can be on/off by entering option dw (default: on)
 
 Script supports AP mode (non router), in this mode wan-event entries
 are not created. Uses random google STUN server to retrieve WAN IP
 
 SMTP Email send formats available:
-curl     - SSL (eg GMail port 465) # amtm default
-sendmail - StartTLS v1.1 higher
-sendmail - StartTLS v1 only
-sendmail - SMTP plain auth (no encryption)
-sendmail - ISP based (no password reqd, generally port 25)
+* curl     - SSL (eg GMail port 465) # amtm default
+* sendmail - StartTLS v1.1 higher
+* sendmail - StartTLS v1 only
+* sendmail - SMTP plain auth (no encryption)
+* sendmail - ISP based (no password reqd, generally port 25)
 
 IMPORTANT - If using GMail/Outlook you must use 2 factor authentication and
 setup an assigned App password for this script to use.
@@ -48,7 +47,7 @@ script are automatically created and removed with enable and disable options.
 
 NTP sync must occur on boot for proper script function
 
-### Technical ###
+Technical
 
 Supports being used as an Email forwarder for other scripts, in your
 script call /jffs/scripts/wicens.sh send {your email.txt path here}
@@ -76,7 +75,7 @@ Sendmail doesnt always return an error code on a misconfiguration so false
 send success can occur.  If script says Email has sent but no Email received
 use option L||l from the Main Menu to read sendmail output for errors.
 
-All messages sent to syslog are duplicated in 1
+All messages sent to syslog are duplicated in /jffs/addons/wicens/wicens.log
 Including failed Email curl logs - Use option Z||z to view wicens.log
 
 The script does not update its saved WAN IP until the script has completed
@@ -92,14 +91,15 @@ Output from a custom script set to run on WAN IP change is saved to
 /jffs/addons/wicens/user_script.log
 
 Hidden menu options
-1f - forces build_settings menu (if amtm enabled)
-fl - remove mail log file
-vv - list out all settings from config files
-fr - remove any found update
-fe - show example Email text file for using wicens as Email forwarder
-ul - show log from user script output when calling script on WAN IP change
-rc - reset core config for notification controls, not user config
-dw - disable/enable Dual WAN check
+* 1f - forces build_settings menu (if amtm enabled)
+* fl - remove mail log file
+* vv - list out all settings from config files
+* fr - remove any found update
+* fe - show example Email text file for using wicens as Email forwarder
+* ul - show log from user script output when calling script on WAN IP change
+* rc - reset core config for notification controls, not user config
+* dw - disable/enable Dual WAN check (default: enabled)
+* au - disable/enable amtm automatic updates (default:disabled)
 
 Every Sunday@6pm the script will log the # of times it ran with wan-event.
 
