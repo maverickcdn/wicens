@@ -23,10 +23,10 @@ start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in m
 printf '\033[?7l'   # disable terminal word wrap
 
 # START ###############################################################################################################
-script_version='4.14'
-script_ver_date='June 15 2026'
+script_version='4.15'
+script_ver_date='July 31 2026'
 current_core_config='4.3'   # version of core config (F_default_update_create)
-current_user_config='4.1'   # version of user config (F_default_user_create)
+current_user_config='4.2'   # version of user config (F_default_user_create)
 
 script_name="$(basename "$0")"
 script_name_full="/jffs/scripts/$script_name"
@@ -511,6 +511,7 @@ F_default_user_create() {
 		F_printfstr "opt_color=1"
 		F_printfstr "log_cron_msg=1"
 		F_printfstr "amtm_import=0"
+		F_printfstr "amtm_update=0"
 		F_printfstr "protocol='smtps'"
 		F_printfstr "ssl_flag="
 		F_printfstr "###########################################################"
@@ -651,8 +652,8 @@ F_opt_about() {
 		F_printfstr "Option 4 - Router reboot events                                              "
 		F_printfstr "Option 5 - Firmware Updates (runs with built-in firmware notification check) "
 		F_printfstr "Option 6 - Script Updates (checks every 48hrs when enabled)                  "
-		F_printfstr "Script can call your own script when WAN IP change occurs (Option 7)         "
-		F_printfstr "WAN IP change monitoring only Option 1 (auto enabled with Option 3)          "
+		F_printfstr "Option 7 - can call your own script when WAN IP change occurs                "
+		F_printfstr "Option 2 - WAN IP change monitoring only (auto enabled with Option 3)        "
 		F_printfstr "Script can also be used to send your own generated Email files see           "
 		F_printfstr "forwarder instructions further below                                         " ; F_printfstr ''
 
@@ -661,7 +662,7 @@ F_opt_about() {
 		F_printfstr "Supports AsusWRT-Merlin built-in amtm Email configuration import             " ; F_printfstr ''
 
 		F_printfstr "Script will function in Double NAT scenarios but does not support Dual WAN   "
-		F_printfstr "Dual WAN check can be on/off by entering option dwd (default: on)            " ; F_printfstr ''
+		F_printfstr "Dual WAN check can be on/off by entering option dw (default: on)             " ; F_printfstr ''
 
 		F_printfstr "Script supports AP mode (non router), in this mode wan-event entries         "
 		F_printfstr "are not created. Uses random google STUN server to retrieve WAN IP           "
@@ -722,7 +723,7 @@ F_opt_about() {
 		F_printfstr "send success can occur.  If script says Email has sent but no Email received "
 		F_printfstr "use option L||l from the Main Menu to read sendmail output for errors.       " ; F_printfstr ''
 
-		F_printfstr "All messages sent to syslog are duplicated in ${script_log}                  "
+		F_printfstr "All messages sent to syslog are duplicated in ${script_log_loc}                  "
 		F_printfstr "Including failed Email curl logs - Use option Z||z to view wicens.log        " ; F_printfstr ''
 
 		F_printfstr "The script does not update its saved WAN IP until the script has completed   "
@@ -745,7 +746,8 @@ F_opt_about() {
 		F_printfstr "fe - show example Email text file for using wicens as Email forwarder        "
 		F_printfstr "ul - show log from user script output when calling script on WAN IP change   "
 		F_printfstr "rc - reset core config for notification controls, not user config            "
-		F_printfstr "dw - disable/enable Dual WAN check                                           " ; F_printfstr ''
+		F_printfstr "dw - disable/enable Dual WAN check (default: enabled)                        "
+		F_printfstr "au - disable/enable amtm automatic updates (default: disabled)               " ; F_printfstr ''
 
 		F_printfstr "Every Sunday@6pm the script will log the # of times it ran with wan-event.   " ; F_printfstr ''
 
@@ -3304,6 +3306,30 @@ F_local_script_update() {
 	F_clean_exit reset
 } # local_script_update
 
+F_amtm_script_update() {
+	if [ "$1" = 'configs' ] ; then
+		F_integrity_check > /dev/null 2>&1
+		if [ "$config_updated" = 1 ] ; then
+			F_printf "\342\234\224 wicens core/user configs updated, script update to v${script_version} complete"
+		else
+			F_printf "\342\234\224 wicens script update to v${script_version} complete"
+		fi
+		[ "$update_notify_state" = 1 ] && F_replace_var update_notify_state 0 "$update_src"
+		F_replace_var update_avail "none" "$update_src"
+		F_replace_var update_date "$(F_date f)" "$config_src"
+		exit 0
+	fi
+
+    F_printfstr "i Starting wicens update from amtm"
+
+	if F_git_get download ; then
+		exec sh "$script_name_full" amtmupdate configs
+	else
+		F_printfstr "X wicens script update failed to download/install"
+		exit 1
+	fi
+} # amtm_script_update
+
 F_integrity_check() {
 	if [ "$update_settings_version" != "$current_core_config" ] ; then   # if new updated core config differs from saved, update
 		old_version="$update_settings_version"
@@ -3422,7 +3448,7 @@ F_integrity_check() {
 		while IFS= read -r config_line
 		do
 			value=$(eval F_printfstr "\"\$$config_line\"")
-			F_replace_var "$config_line" "$value" "$config_src"
+			[ -n "$value" ] && F_replace_var "$config_line" "$value" "$config_src"
 		done < '/tmp/wicens_config_copy.tmp'
 		rm -f /tmp/wicens_config_copy.tmp
 
@@ -3435,6 +3461,7 @@ F_integrity_check() {
 	if [ "$config_updated" = 1 ] ; then
 		fw_nvram_check_diff=$((max_fw_nvram_check + 1))   # if updated config force firmware check update
 		F_firmware_check
+		[ "$run_option" = 'amtmupdate' ] && return 0
 		F_wait 60
 		F_clean_exit reset
 	fi
@@ -4289,6 +4316,11 @@ F_status() {
 		else F_status_disabled "Script update Email notify"
 		fi
 
+		if [ "$amtm_update" = 1 ]
+		then F_status_enabled "Script amtm automatic updates"
+		else F_status_disabled "Script amtm automatic updates"
+		fi
+
 		F_terminal_separator
 
 		if [ "$amtm_import" = 1 ]
@@ -4489,7 +4521,7 @@ F_main_menu() {
 	F_printf "[${tGRN}${load_time}${tCLR}] Menu load time"
 
 	case "$1" in
-		'hidden') F_terminal_padding ; F_opt_about | sed -n '93,101p' ;;
+		'hidden') F_terminal_padding ; F_opt_about | sed -n '93,102p' ;;
 	esac
 
 	F_terminal_padding
@@ -4567,6 +4599,19 @@ F_main_menu() {
 				0)
 					F_replace_var dual_wan_check 1 "$update_src"
 					F_log_terminal_ok "Dual WAN check enabled"
+				;;
+			esac
+			F_menu_exit
+		;;
+		au)
+			case "$amtm_update" in
+				0)
+					F_replace_var amtm_update 1 "$config_src"
+					F_log_terminal_ok "amtm automatic updates enabled"
+				;;
+				1)
+					F_replace_var amtm_update 0 "$config_src"
+					F_log_terminal_ok "amtm automatic updates disabled"
 				;;
 			esac
 			F_menu_exit
@@ -4742,8 +4787,12 @@ F_ntp() {
 
 case "$run_option" in
 	'amtmupdate')
-		[ "$2" = 'check' ] && exit 1   # amtm update disable
-		exit 1
+		F_user_settings   # load config files
+		if [ "$2" = 'check' ] ; then
+			if [ "$amtm_update" = 1 ] ; then exit 0 ; else exit 1 ; fi
+		fi   # amtm update disable/enable
+		[ "$2" = 'configs' ] && F_amtm_script_update configs   # update script config files
+		F_amtm_script_update
 	;;
 
 	'reload') # reload menu without ntp/lock/alias/fw check etc
