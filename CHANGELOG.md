@@ -1,5 +1,11 @@
 # wicens change log
 -----------------
+## 4.15
+July 31 2026
+* ADDED: full support for updating via amtm automatic updates (default: disabled)
+* CHANGED: user config file from v4.1 to v4.2
+* CHANGED: corrected/updated readme/about
+
 ## 4.14
 June 15 2026
 * ADDED: amtm requirement support
