@@ -1,5 +1,23 @@
 # wicens change log
 -----------------
+## 4.16
+Aug 21 2026
+* ADDED: any variable from config files can be added to wanip/fw/reboot/script custom subject or custom text
+* CHANGED: core config from v4.3 to v4.4
+* ADDED: firmware base version
+* ADDED: sample/test Email for script update
+* FIXED: custom subject/custom text - menu option N||n did not function properly
+* FIXED: configured custom subjects now appear in status view (incorrect var name fw/reboot/script)
+* FIXED: reboot uptime/downtime in sample/test
+* FIXED: new lines in custom text (were printed as string, now escape seq are recognized)
+* CHANGED: misc variable delimiting/settings test
+* CHANGED: more resilient menus from invalid input
+* CHANGED: lots of minor visual tweaks|header auto align/center|colored enable/disable
+* CHANGED: misc script optimization and rearrangement
+* FIXED: new fw version number in fw update default subject
+* CHANGED: random_num now uses /dev/urandom instead of uptime
+* CHANGED: installer function, removed from F_firmware_check
+
 ## 4.15
 July 31 2026
 * ADDED: full support for updating via amtm automatic updates (default: disabled)
