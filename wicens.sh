@@ -17,23 +17,23 @@
 # shellcheck disable=SC2039,SC2183,SC2104,SC1090,SC2154,SC2034
 # hex expr   menuprintf   continuefunc   constantsource   unassvar   unusedvar
 
-[ "$1" = 'debug' ] && shift && set -x
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin:$PATH"
 start_time="$(awk '{print $1}' < /proc/uptime)"   # for calc menu load time in ms
 printf '\033[?7l'   # disable terminal word wrap
 
+[ "$1" = 'debug' ] && shift && set -x
+run_option="${1:-tty}"
+
 # START ###############################################################################################################
-script_version='4.15'
-script_ver_date='July 31 2026'
-current_core_config='4.3'   # version of core config (F_default_update_create)
+script_version='4.16'
+script_ver_date='Aug 21 2026'
+current_core_config='4.4'   # version of core config (F_default_update_create)
 current_user_config='4.2'   # version of user config (F_default_user_create)
 
 script_name="$(basename "$0")"
-script_name_full="/jffs/scripts/$script_name"
+script_name_full="/jffs/scripts/${script_name}"
 script_dir='/jffs/addons/wicens'
 script_git_src='https://raw.githubusercontent.com/maverickcdn/wicens/master/'
-run_option="$1"
-[ -z "$1" ] && run_option='tty'   # used to show tty vs cron/test/wancall/fwupdate/send run
 config_src="${script_dir}/wicens_user_config.wic"   # user settings
 update_src="${script_dir}/wicens_update_conf.wic"   # core config file
 history_src="${script_dir}/wicens_wan_history.wic"   # historical wan ip change file
@@ -59,7 +59,7 @@ amtm_cred_loc='/jffs/addons/amtm/mail/emailpw.enc'
 amtm_d='L3Vzci9zYmluL29wZW5zc2wgMj4vZGV2L251bGwgYWVzLTI1Ni1jYmMgLXBia2RmMiAtZCAtaW4gL2pmZnMvYWRkb25zL2FtdG0vbWFpbC9lbWFpbHB3LmVuYyAtcGFzcyBwYXNzOmRpdGJhYm90LGlzb2kK'
 user_d='L3Vzci9zYmluL29wZW5zc2wgZW5jIC1tZCBzaGE1MTIgLXBia2RmMiAtYWVzLTI1Ni1jYmMgLWQgLWEgLXBhc3MgcGFzczoiJChGX252cmFtIGJvYXJkbnVtIHwgL2Jpbi9zZWQgcy86Ly9nKSIK'
 user_e='L3Vzci9zYmluL29wZW5zc2wgZW5jIC1tZCBzaGE1MTIgLXBia2RmMiAtYWVzLTI1Ni1jYmMgLWEgLXNhbHQgLXBhc3MgcGFzczoiJChGX252cmFtIGJvYXJkbnVtIHwgL2Jpbi9zZWQgcy86Ly9nKSIgfCB0ciAtZCAiXG4iCg=='
-ip_regex='^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$'
+ip_regex='((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
 current_wan_ip=''
 building_settings=0
 test_mode=0
@@ -72,6 +72,7 @@ config_updated=0
 F_git_get() {
 	case "$1" in
 		'file') curl -fsL --retry 2 --retry-delay 3 --connect-timeout 3 ${script_git_src}${script_name} ;;
+		'version') F_git_get file | grep -Fm1 'script_version=' | cut -d'=' -f2 | sed "s/'//g" ;;
 		'download') if curl -fsL --retry 2 --retry-delay 3 --connect-timeout 3 ${script_git_src}${script_name} -o /jffs/scripts/wicens.sh ; then F_chmod "$script_name_full" ; else return 1 ; fi ;;
 		'changelog') curl -fsL --retry 2 --retry-delay 3 --connect-timeout 3 ${script_git_src}CHANGELOG.md ;;
 		'hotfix') F_git_get changelog | sed -n "/^## $git_version/,/^## /p" | head -n -1 | sed 's/## //g' ;;
@@ -88,14 +89,15 @@ F_ctrlc() {
 
 trap F_ctrlc INT HUP   # trap ctrl+c exit clean
 
-F_replace_var() { sed -i "1,/${1}=.*/{s/${1}=.*/${1}=\'${2}\'/;}" "$3" ;}   # 1=var to change 2=new var string 3=file
-F_chmod() { [ ! -x "$1" ] && chmod a+rx "$1" ;}   # file permissions
+F_replace_var() { sed -i "1,/${1}=.*/s/${1}=.*/${1}='${2}'/" "$3"   ;}   # 1=var to change 2=new var string 3=file
+F_chmod() { [ ! -x "$1" ] && chmod a+rx "$1" && F_log_terminal_ok "$(F_printfstr "$1" | awk -F/ '{print $(NF)}') set executable" ;}   # file permissions
 F_crlf() { if grep -q $'\x0D' "$1" 2> /dev/null ; then dos2unix "$1" && F_log_terminal_ok "$(F_printfstr "$1" | awk -F/ '{print $(NF)}') contained CRLF, executed dos2unix" ; fi ;}   # crlf
 F_nvram() { nvram get "$1" ;}
 F_printf() { printf '%b\n' "$1" ;}   # printf recognize escape strings
 F_printfstr() { printf '%s\n' "$1" ;}   # printf raw string
 F_printfp() { F_printfstr "$1" | /bin/sed 's@.*@<p style="color: black; font-family: monospace; font-size: 13px; line-height: 1.5;">&</p>@' ;}   # HTML email msg encapsulate line
 F_printfpre() { F_printfstr "$1" | /bin/sed 's@.*@<pre style="color: black; font-family: monospace; font-size: 13px; line-height: 1.5;">&</pre>@' ;}   # HTML email msg encapsulate line preserve whitespace
+F_printfepre() { F_printf "$1" | /bin/sed 's@.*@<pre style="color:black; font-family:monospace; font-size:13px; line-height:1.5;">&</pre>@' ;}   # HTML email msg encapsulate line preserve whitespace recoginze escape
 F_date() {
 	case "$1" in
 		'r') date -R ;;   # RFC
@@ -105,32 +107,33 @@ F_date() {
 } # date
 
 # TERMINAL/LOGGING ####################################################################################################
-F_terminal_show() { F_printf "$tTERMHASH $1" ;}   # [~~~~]
+F_terminal_show() { F_printf "${tTERMHASH} ${1}" ;}   # [~~~~]
 F_terminal_padding() { F_printfstr '' ;}   # blank line
 F_terminal_separator() { F_printfstr '--------------------------------------------------------------------------------' ;}   # 80 column
 F_terminal_erase() { printf '%b' "${tBACK}${tERASE}" ;}   # erase previous line
-F_terminal_entry() { printf '%b' "$tTERMHASH $1" ;}   # [~~~~] no new line
-F_terminal_check() { printf '%b' "$tCHECK $1" ;}   # [WAIT] no new line
-F_terminal_check_ok() { F_printf "\r${tERASE}${tCHECKOK} $1" ;}   # [ OK ]
-F_terminal_check_fail() { F_printf "\r${tERASE}${tCHECKFAIL} $1" ;}   # [FAIL]
-F_term_waitdel() { printf '%b' "${tERASE}${tCHECK} $1 \r" ;}   # used in countdowns (line re-write)
+F_terminal_entry() { printf '%b' "${tTERMHASH} ${1}" ;}   # [~~~~] no new line
+F_terminal_check() { printf '%b' "${tCHECK} ${1}" ;}   # [WAIT] no new line
+F_terminal_check_ok() { F_printf "\r${tERASE}${tCHECKOK} ${1}" ;}   # [ OK ]
+F_terminal_check_fail() { F_printf "\r${tERASE}${tCHECKFAIL} ${1}" ;}   # [FAIL]
+F_term_waitdel() { printf '%b' "${tERASE}${tCHECK} ${1} \r" ;}   # used in countdowns (line re-write)
 F_status_grn() { F_terminal_show "$(printf "%s%s|\n" "$1" "$(printf '%*s' "$((35 - ${#1}))" | tr ' ' '-')") ${tGRN}${2}${tCLR}" ;}   # status enabled custom text
-F_status_enabled() { F_terminal_show "$(printf "%s%s|\n" "$1" "$(printf '%*s' "$((35 - ${#1}))" | tr ' ' '-')") ${tGRN}Enabled${tCLR}" ;}   # status Enabled
 F_status_pass() { F_terminal_show "$(printf "%s%s|\n" "$1" "$(printf '%*s' "$((35 - ${#1}))" | tr ' ' '-')") ${tGRN}Passed${tCLR}" ;}   # status pass
 F_status_fail() { F_terminal_show "$(printf "%s%s|\n" "$1" "$(printf '%*s' "$((35 - ${#1}))" | tr ' ' '-')") ${tRED}Failed${tCLR}"  ;}   # status fail
+F_status_enabled() { F_terminal_show "$(printf "%s%s|\n" "$1" "$(printf '%*s' "$((35 - ${#1}))" | tr ' ' '-')") ${tGRN}Enabled${tCLR}" ;}   # status Enabled
 F_status_disabled() { F_terminal_show "$(printf "%s%s|\n" "$1" "$(printf '%*s' "$((35 - ${#1}))" | tr ' ' '-')") ${tRED}Disabled${tCLR}"  ;}   # status Disabled
-F_menu_enabled() { F_terminal_show "$1 ${tGRN}Enabled${tCLR}" ;}   # menu enabled
-F_menu_disabled() { F_terminal_show "$1 ${tRED}Disabled${tCLR}" ;}   # menu disabled
-F_edit() { F_terminal_show "$1 ${tGRN}${2}${tCLR}" ;}   # edit menu
+F_menu_enabled() { F_terminal_show "${1} ${tGRN}Enabled${tCLR}" ;}   # menu enabled
+F_menu_disabled() { F_terminal_show "${1} ${tRED}Disabled${tCLR}" ;}   # menu disabled
+F_edit() { F_terminal_show "${1} ${tGRN}${2}${tCLR}" ;}   # edit menu
 F_terminal_warning() { printf '%b%48s\n%48s\n%48s%b\n\n' "$tRED" "#################" "#    WARNING    #" "#################" "$tCLR" ;}   # terminal warning
 F_fail_entry() { F_terminal_check_fail "Invalid entry, any key to retry" && read -rsn1 && F_terminal_erase && continue ;}   # terminal input invalid entry
 F_log() {
 	case "$script_log" in
 		'1')
 			printf '%s' "$(F_date f) " >> "$script_log_loc"
-			logger -st "wicens[$$]" "$(F_printfstr "${run_option} : $1" )" 2>> "$script_log_loc"
+			logger -st "wicens[$$]" "$(F_printfstr "${run_option} : ${1}" )" 2>> "$script_log_loc"
 		;;
-		*) logger -t "wicens[$$]" "$(F_printfstr "${run_option} : $1" )"
+
+		*) logger -t "wicens[$$]" "$(F_printfstr "${run_option} : ${1}" )"
 		;;
 	esac
 } # logging
@@ -186,7 +189,7 @@ F_confirm() {
 	while true ; do
 		case "$1" in
 			'correct') F_terminal_check "Is ${tGRN}${2}${tCLR} correct? | Y||y or N||n " ;;
-			*) F_terminal_check "$1 | Y||y or N||n " ;;
+			*) F_terminal_check "${1} | Y||y or N||n " ;;
 		esac
 
 		read -rsn1 ynentry
@@ -194,6 +197,7 @@ F_confirm() {
 			Y|y) return 0 ;;
 			N|n) return 1 ;;
 			E|e) F_terminal_check_fail "Cancelled, exit selected" ; F_menu_exit ;;
+			'') F_printf "\r${tERASE}${tBACK}" ; continue ;;
 			*) F_fail_entry ;;
 		esac
 		break
@@ -216,8 +220,7 @@ F_wait() {
 
 F_random_num() {
 	if [ -z "$1" ] ; then random_max='30' ; else random_max="$1" ; fi
-	# pull uptime (w/ millisecond) as seed # for rng
-	awk -v min=1 -v max="$random_max" -v seed="$(awk '{print $1}' < /proc/uptime | tr -d '.')" 'BEGIN{srand(seed); print int(min+rand()*(max-min+1))}'
+	awk -v min=1 -v max="$random_max" -v seed="$(tr -cd '0-9' </dev/urandom | head -c 6)" 'BEGIN {srand(seed); print int(min + rand() * (max - min + 1))}'
 } # random_num
 
 F_private_ip() {
@@ -240,6 +243,53 @@ F_uptime() {
 } # uptime
 
 # SCRIPT CONTROL ######################################################################################################
+F_alias() {
+	case "$1" in
+		'remove')
+			if [ -f /jffs/configs/profile.add ] ; then
+				if grep -Fq "alias wicens=" /jffs/configs/profile.add ; then
+					sed -i "/alias wicens=/d" /jffs/configs/profile.add
+					[ ! -s /jffs/configs/profile.add ] && rm -f /jffs/configs/profile.add
+					F_log_terminal_ok "Removed alias from /jffs/configs/profile.add"
+				else
+					F_log_terminal_ok "No alias found in /jffs/configs/profile.add to remove"
+				fi
+			else
+				F_log_terminal_ok "No alias found in /jffs/configs/profile.add to remove"
+			fi
+			return 0
+		;;
+	esac
+
+	if [ ! -f /jffs/configs/profile.add ] ; then
+		F_printfstr "alias wicens=\"/bin/sh ${script_name_full}\"   # added by wicens $(F_date r)" > /jffs/configs/profile.add
+		F_log_terminal_ok "Created /jffs/configs/profile.add and added entry for wicens"
+	elif ! grep -Fq "alias wicens=" /jffs/configs/profile.add ; then
+		F_printfstr "alias wicens=\"/bin/sh ${script_name_full}\"   # added by wicens $(F_date r)" >> /jffs/configs/profile.add
+		F_log_terminal_ok "Added alias in /jffs/configs/profile.add for wicens"
+	fi
+	return 0
+} # alias   only checked on tty runs
+
+F_installer() {
+	opt_color=1 ; script_log=1 ; script_log_loc="${script_dir}/wicens.log" ; F_terminal_color   # config not yet created temp values
+	F_terminal_header
+	mkdir "$script_dir"
+	F_log "HI - wicens the WAN IP change Email notification script has been installed"
+	F_printf "[ ${tGRN}HI${tCLR} ] ${tYEL}===== Welcome to wicens the WAN IP change Email notification script =====${tCLR}"
+	F_terminal_padding
+	F_alias
+	F_log_terminal_ok "Created ${script_dir} directory"
+	F_default_update_create && F_chmod "$update_src"
+	F_default_user_create && F_chmod "$config_src"
+	F_replace_var install_date "$(F_date f)" "$config_src"
+	F_user_settings
+	F_firmware_check installer
+	F_terminal_padding
+	F_terminal_check "Any key to continue to Main Menu"
+	read -rsn1
+	F_clean_exit reset
+} # installer
 
 F_clean_exit() {
 	# reset terminal word wrap
@@ -302,162 +352,106 @@ F_menu_exit() {
 } # menu_exit
 
 # FIRMWARE CHECK ######################################################################################################
-
 F_firmware_check() {
-	F_fw_valid_version() {
-		if [ -z "$build_full" ] ; then
-			F_terminal_header
-			F_log_terminal_fail "Could not determine your firmware version from nvram"
-			rm -r "$script_dir" 2> /dev/null
-			F_terminal_check "Any key to exit..."
-			read -rsn 1
-			F_clean_exit
-		fi
+	F_replace_var fw_nvram_check_epoch "$(F_date s)" "$update_src"
+	build_full="$(F_nvram buildno)"
+	build_no="$(F_printf "$build_full" | cut -f1 -d '.')"
+	build_sub="$(F_printf "$build_full" | cut -f2 -d '.')"
+	build_extend="$(F_nvram extendno)"
+	build_base="$(F_nvram firmver | sed 's/\.//g')"
+	software_mode="$(F_nvram sw_mode)"
 
-		[ "$(F_nvram firmver)" = '3.0.0.6' ] && return 0
-
-		case "$build_no" in
-			'386'|'388') return 0 ;;
-			'384') [ "$build_sub" -ge 15 ] && return 0 ;;
-			'374') [ "$john_sub" -ge 48 ] && return 0 ;;
-			*)
-				F_terminal_header
-				F_log_terminal_fail "Sorry this version of firmware is not compatible, please update to 384.15 or newer, or 374 LTS release 48 or newer to utilize this script"
-				F_terminal_padding
-				rm -r "$script_dir" 2> /dev/null
-				F_clean_exit
-			;;
-		esac
-	} # fw_valid_version
-
-	F_fw_write() {
-		pulled_device_name="$(F_nvram lan_hostname)"
-		pulled_lan_name="$(F_nvram lan_domain)"
-		device_model="$(F_nvram odmpid)"
-		lan_addr="$(F_nvram lan_ipaddr)"
-		[ -z "$device_model" ] && device_model="$(F_nvram productid)"
-
-		case "$build_no" in
-			'374') F_replace_var fw_build_sub "$john_sub" "$update_src" ;;
-			*) F_replace_var fw_build_sub "$build_sub" "$update_src" ;;
-		esac
-
-		F_replace_var fw_build_full "${build_no}.${build_sub}_${build_extend}" "$update_src"
-		F_replace_var fw_pulled_device_name "$pulled_device_name" "$update_src"
-		F_replace_var fw_pulled_lan_name "$pulled_lan_name" "$update_src"
-		F_replace_var fw_device_model "$device_model" "$update_src"
-		F_replace_var fw_build_no "$build_no" "$update_src"
-		F_replace_var fw_build_extend "$build_extend" "$update_src"
-		F_replace_var fw_lan_addr "$lan_addr" "$update_src"
-		F_replace_var fw_sw_mode "$software_mode" "$update_src"
-		source "$update_src"
-
-		case "$1" in
-			'fwupdate')
-				from_menu=1
-				F_terminal_header
-				F_log_show "Found new firmware version installed on router"
-				F_log_terminal_ok "core config v${update_settings_version} updated for new fw version ${build_full}_${build_extend}"
-				F_replace_var fw_notify_state 0 "$config_src"   # reset Email notification after upgrading
-				F_menu_exit
-			;;
-
-			*)
-				case "$config_updated" in
-					1)
-						# for integrity_check updates
-						F_log_terminal_ok "core config v${update_settings_version} updated with router firmware information"
-					;;
-
-					*)
-						from_menu=1
-						installer=1
-						F_terminal_header
-						F_log "HI - wicens the WAN IP change EMAIL notification script has been installed"
-						F_printf "[ ${tGRN}HI${tCLR} ] ${tYEL}===== Welcome to wicens the WAN IP change Email notification script =====${tCLR}"
-						F_terminal_padding
-						F_terminal_check_ok "Created $script_dir directory"
-						F_terminal_check_ok "Created default user config v${current_user_config} for script v${script_version} in ${script_dir}"
-						F_terminal_check_ok "Created default core config v$current_core_config for script v${script_version} in ${script_dir}"
-						F_log_terminal_ok "Updated core config v${update_settings_version} with router firmware information"
-						F_alias
-						F_terminal_padding
-						F_terminal_check "Any key to continue to Main Menu"
-						read -rsn1
-						F_clean_exit reset
-					;;
-				esac
-			;;
-		esac
-	} # fw_write
-
-	# only if we havent checked fw already in the last 10 mins
-	if [ "$fw_nvram_check_diff" -gt "$max_fw_nvram_check" ] ; then
-		# start of fw check
-		# set fw vars check if written, check for update ##################################################################
-		F_replace_var fw_nvram_check_epoch "$(F_date s)" "$update_src"
-		build_full="$(F_nvram buildno)"
-		build_no="$(F_printf "$build_full" | cut -f1 -d '.')"
-		build_sub="$(F_printf "$build_full" | cut -f2 -d '.')"
-		build_extend="$(F_nvram extendno)"
-		software_mode="$(F_nvram sw_mode)"
-
-		# initial firmware compatibility check, first run will be unpopulated
-		if [ -z "$fw_build_no" ] || [ -z "$fw_build_sub" ] || [ -z "$fw_build_extend" ] || [ -z "$fw_build_full" ] ; then
-			if F_fw_valid_version ; then
-				# new install set install date
-				[ -z "$install_date" ] && F_replace_var install_date "$(F_date f)" "$config_src"
-				F_fw_write
-				fw_init=1
-			fi
-		fi
-
-		case "$fw_build_no" in
-			'374')
-				john_sub=${build_extend:0:2}
-				[ "$johnsub" != "$fw_build_sub" ] && F_fw_write fwupdate
-			;;
-
-			# check if user has upgraded firmware and update config, saving to config avoids numerous nvram calls every run not from terminal
-			*)
-				[ "$build_no" != "$fw_build_no" ] || [ "$build_sub" != "$fw_build_sub" ] || [ "$build_extend" != "$fw_build_extend" ] && F_fw_write fwupdate
-				[ "$fw_sw_mode" != "$software_mode" ] && F_replace_var fw_sw_mode "$software_mode" "$update_src"
-			;;
-		esac
-	fi
-	[ "$config_updated" = 1 ] && [ "$fw_init" != 1 ] && F_terminal_check_ok "core config firmware/router information current"
-	return 0
-} # firmware_check
-
-# ALIAS ###############################################################################################################
-
-F_alias() {
 	case "$1" in
-		'remove')
-			if [ -f /jffs/configs/profile.add ] ; then
-				if grep -Fq "alias wicens=" /jffs/configs/profile.add ; then
-					sed -i "/alias wicens=/d" /jffs/configs/profile.add
-					[ ! -s /jffs/configs/profile.add ] && rm -f /jffs/configs/profile.add
-					F_log_terminal_ok "Removed alias from /jffs/configs/profile.add"
-				else
-					F_log_terminal_ok "No alias found in /jffs/configs/profile.add to remove"
-				fi
-			else
-				F_log_terminal_ok "No alias found in /jffs/configs/profile.add to remove"
+		'installer')
+			if [ -z "$build_full" ] ; then
+				F_terminal_header
+				F_log_terminal_fail "Could not determine your firmware version from nvram"
+				rm -r "$script_dir" 2> /dev/null
+				F_terminal_check "Any key to exit..."
+				read -rsn 1
+				F_clean_exit
 			fi
-			return 0
+
+			case "$build_base" in
+				'3006') F_firmware_write installer && return 0 ;;
+			esac
+
+			case "$build_no" in
+				'386'|'388') F_firmware_write installer && return 0 ;;
+				'384') [ "$build_sub" -ge 15 ] && F_firmware_write installer && return 0 ;;
+				'374') [ "$john_sub" -ge 48 ] && F_firmware_write installer && return 0 ;;
+
+				*)
+					F_terminal_header
+					F_log_terminal_fail "Sorry this version of firmware is not compatible, please update to 384.15 or newer, or 374 LTS release 48 or newer to utilize this script"
+					F_terminal_padding
+					rm -r "$script_dir" 2> /dev/null
+					F_clean_exit
+				;;
+			esac
 		;;
 	esac
 
-	if [ ! -f /jffs/configs/profile.add ] ; then
-		F_printfstr "alias wicens=\"/bin/sh ${script_name_full}\"   # added by wicens $(F_date r)" > /jffs/configs/profile.add
-		F_log_terminal_ok "Created /jffs/configs/profile.add and added entry for wicens"
-	elif ! grep -Fq "alias wicens=" /jffs/configs/profile.add ; then
-		F_printfstr "alias wicens=\"/bin/sh ${script_name_full}\"   # added by wicens $(F_date r)" >> /jffs/configs/profile.add
-		F_log_terminal_ok "Added alias in /jffs/configs/profile.add for wicens"
-	fi
+	case "$fw_build_no" in
+		'374')
+			john_sub=${build_extend:0:2}
+			[ "$johnsub" != "$fw_build_sub" ] && F_fw_write fwupdate
+		;;
+
+		# check if user has upgraded firmware and update config, saving to config avoids numerous nvram calls every run not from terminal
+		*)
+			[ "$fw_sw_mode" != "$software_mode" ] && F_replace_var fw_sw_mode "$software_mode" "$update_src"
+			if [ "$build_no" != "$fw_build_no" ] || [ "$build_sub" != "$fw_build_sub" ] || [ "$build_extend" != "$fw_build_extend" ] ; then
+				F_firmware_write fwupdate
+			fi
+		;;
+	esac
+
+	[ "$config_updated" = 1 ] && F_terminal_check_ok "core config firmware/router information current"
 	return 0
-} # alias   only checked on tty runs
+} # firmware_check
+
+F_firmware_write() {
+	pulled_device_name="$(F_nvram lan_hostname)"
+	pulled_lan_name="$(F_nvram lan_domain)"
+	device_model="$(F_nvram odmpid)"
+	lan_addr="$(F_nvram lan_ipaddr)"
+	[ -z "$device_model" ] && device_model="$(F_nvram productid)"
+
+	case "$build_no" in
+		'374') F_replace_var fw_build_sub "$john_sub" "$update_src" ;;
+		*) F_replace_var fw_build_sub "$build_sub" "$update_src" ;;
+	esac
+
+	F_replace_var fw_base "$build_base" "$update_src"
+	F_replace_var fw_build_full "${build_no}.${build_sub}_${build_extend}" "$update_src"
+	F_replace_var fw_pulled_device_name "$pulled_device_name" "$update_src"
+	F_replace_var fw_pulled_lan_name "$pulled_lan_name" "$update_src"
+	F_replace_var fw_device_model "$device_model" "$update_src"
+	F_replace_var fw_build_no "$build_no" "$update_src"
+	F_replace_var fw_build_extend "$build_extend" "$update_src"
+	F_replace_var fw_lan_addr "$lan_addr" "$update_src"
+	F_replace_var fw_sw_mode "$software_mode" "$update_src"
+	source "$update_src"
+
+	case "$1" in
+		'fwupdate')
+			from_menu=1
+			F_terminal_header
+			F_log_show "Found new firmware version installed on router"
+			F_log_terminal_ok "core config v${update_settings_version} updated for new fw version ${fw_base}.${build_full}_${build_extend}"
+			F_replace_var fw_notify_state 0 "$config_src"   # reset Email notification after upgrading
+			F_menu_exit
+		;;
+
+		'installer')
+			F_log_terminal_ok "Updated core config v${update_settings_version} with router firmware information"
+		;;
+
+		'integrity') F_log_terminal_ok "core config v${update_settings_version} updated with router firmware information"
+		;;
+	esac
+} # firmware_write
 
 # USER SETTINGS #######################################################################################################
 #######################################################################################################################
@@ -518,7 +512,7 @@ F_default_user_create() {
 		F_printfstr "# Created : $(F_date r)"
 	} > "$config_src"
 
-	F_log "Created default user config v${current_user_config} for v${script_version} in ${script_dir}"
+	F_log_terminal_ok "Created default user config v${current_user_config} for v${script_version} in ${script_dir}"
 } # create user config
 
 F_default_update_create() {
@@ -527,6 +521,7 @@ F_default_update_create() {
 		F_printfstr "# wicens core config file"
 		F_printfstr "update_settings_version='${current_core_config}'"
 		F_printfstr "###########################################################"
+		F_printfstr "fw_base="
 		F_printfstr "fw_build_no="
 		F_printfstr "fw_build_sub="
 		F_printfstr "fw_build_extend="
@@ -546,6 +541,8 @@ F_default_update_create() {
 		F_printfstr "router_reboot_downtime="
 		F_printfstr "fw_nvram_check_epoch=0"
 		F_printfstr "# USER CAN EDIT BELOW SETTINGS ###########################"
+		F_printfstr "lock_age_max=180   # script lock file maxmium age"
+		F_printfstr "internet_lock_max=315   # internet check lock file max age"
 		F_printfstr "stun_max=3   # max number of stun lookup retries"
 		F_printfstr "getrealip_max=3   # max number of getrealip.sh retries"
 		F_printfstr "update_period=172800   # period between script update checks  default:172800 (48 hrs)"
@@ -592,37 +589,41 @@ F_default_update_create() {
 		F_printfstr "# Created : $(F_date r)"
 	} > "$update_src"
 
-	F_log "Created default core config v${current_core_config} for v${script_version} in ${script_dir}"
+	F_log_terminal_ok "Created default core config v${current_core_config} for v${script_version} in ${script_dir}"
 } # create current_core
 
 F_user_settings() {
-	[ ! -d "$script_dir" ] && mkdir "$script_dir" && F_log "Welcome to wicens - created $script_dir directory"
-	[ ! -f "$update_src" ] && F_default_update_create && F_chmod "$update_src"
-	[ ! -f "$config_src" ] && F_default_user_create && F_chmod "$config_src"
-
 	source "$config_src"   # source user config file
 	source "$update_src"   # source script config file
 
-	[ -n "$user_custom_subject" ] && user_custom_subject_decoded="$(F_printfstr "$user_custom_subject" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_subject_r" ] && user_custom_subject_decoded_r="$(F_printfstr "$user_custom_subject_r" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_subject_f" ] && user_custom_subject_decoded_f="$(F_printfstr "$user_custom_subject_f" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_subject_s" ] && user_custom_subject_decoded_s="$(F_printfstr "$user_custom_subject_s" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_text" ] && user_custom_text_decoded="$(F_printfstr "$user_custom_text" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_text_r" ] && user_custom_text_r_decoded="$(F_printfstr "$user_custom_text_r" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_text_f" ] && user_custom_text_f_decoded="$(F_printfstr "$user_custom_text_f" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_text_s" ] && user_custom_text_s_decoded="$(F_printfstr "$user_custom_text_s" | /usr/sbin/openssl base64 -d)"
-	[ -n "$user_custom_script" ] && user_custom_script_decoded="$(F_printfstr "$user_custom_script" | /usr/sbin/openssl base64 -d)"
-
-	case "$user_custom_script_time" in
-		i) user_script_call_time='immediate' ;;
-		w) user_script_call_time='wait' ;;
-	esac
+	for custom_field in user_custom_subject user_custom_subject_r user_custom_subject_f user_custom_subject_s \
+						user_custom_text user_custom_text_r user_custom_text_f user_custom_text_s user_custom_script
+	do
+		eval "custom_value=\${$custom_field}"
+		if [ -n "$custom_value" ] ; then
+			custom_decoded="$(F_printfstr "$custom_value" | /usr/sbin/openssl base64 -d)"
+			eval "${custom_field}_decoded=\$custom_decoded"
+		fi
+	done
 
 	case "$run_option" in
 		'tty')
-			fw_nvram_check_diff="$(($(F_date s) - fw_nvram_check_epoch))"
+			case "$user_custom_script_time" in
+				i) user_script_call_time='immediate' ;;
+				w) user_script_call_time='wait' ;;
+			esac
+
+			fw_nvram_check_diff="$(($(F_date s) - fw_nvram_check_epoch))"   # fw updated check
 			F_terminal_color   # load user terminal settings
 			F_integrity_check   # check config file status
+		;;
+
+		'cron')
+			# update_cron_epoch comes from core config (default=0) update_diff used in status and (time remaining to sched check) if enabled script updates
+			if [ "$update_cron_epoch" -gt 0 ]
+			then update_diff=$((run_epoch - update_cron_epoch))
+			else update_diff=$((update_period + 1))
+			fi
 		;;
 	esac
 
@@ -631,13 +632,7 @@ F_user_settings() {
 	original_wan_ip="$(grep -F 'saved_wan_ip' 2> /dev/null < "$config_src" | grep -Eo "$ip_regex")"
 	original_wan_date="$(grep -F 'saved_wan_date' 2> /dev/null < "$config_src" | cut -d'=' -f2 | tr -d "'")"
 	original_wan_epoch="$(grep -F 'saved_wan_epoch' 2> /dev/null < "$config_src" | cut -d'=' -f2 | tr -d "'")"
-
-	# update_cron_epoch comes from core config (default=0) update_diff used in status and (time remaining to sched check) if enabled script updates
-	if [ "$update_cron_epoch" -gt 0 ]
-	then update_diff=$((run_epoch - update_cron_epoch))
-	else update_diff=$((update_period + 1))
-	fi
-} # user settings
+} # user_settings
 
 # MENU OPTIONS ########################################################################################################
 #######################################################################################################################
@@ -998,8 +993,7 @@ F_opt_color() {
 F_opt_count() {
 	count_entry=1
 	F_terminal_header
-	F_terminal_show "${tYEL}===== Counts Reset Menu =====${tCLR}   E||e to Exit"
-	F_terminal_padding
+	F_menu_title "Counts Reset Menu"
 	F_status count | sed -n '/Cron run/,/Script configured/p'
 	F_terminal_separator
 	F_terminal_warning
@@ -1054,12 +1048,12 @@ F_opt_forward() {
 			F_printfstr "fwd_send_msg='${wicens_send_copy}'"
 			F_printfstr "fwd_send_addr='${user_send_to_addr}'"
 			F_printfstr "wicens_send_retry_time='${run_epoch}'"
-			F_printfstr "# Attempting to send $fwd_send_msg to $user_send_to_addr $(F_date r)"
+			F_printfstr "# Attempting to send ${fwd_send_msg} to ${user_send_to_addr} $(F_date r)"
 		} > "$wicens_send_retry"
 		F_chmod "$wicens_send_retry"
 		cp "$fwd_send_msg" "$wicens_send_copy" 2> /dev/null   # copy incase send fails and user has email removed in their script
 	else
-		F_printfstr "# Attempting to send $fwd_send_msg to $user_send_to_addr $(F_date r)" >> "$wicens_send_retry"
+		F_printfstr "# Attempting to send ${fwd_send_msg} to ${user_send_to_addr} $(F_date r)" >> "$wicens_send_retry"
 	fi
 
 	mail_file="$fwd_send_msg"
@@ -1068,7 +1062,7 @@ F_opt_forward() {
 	F_internet_check send
 
 	if ! F_send_email ; then
-		F_log_terminal_fail "Error, failed to send $fwd_send_msg Email to $user_send_to_addr"
+		F_log_terminal_fail "Error, failed to send ${fwd_send_msg} Email to ${user_send_to_addr}"
 		user_pswd=''
 		rm -f "$mail_file"
 		return 1
@@ -1078,7 +1072,7 @@ F_opt_forward() {
 	rm -f "$mail_file"
 	rm -f "$wicens_send_retry"
 	rm -f "$wicens_send_copy"
-	F_log_terminal_ok "Success, finished sending $fwd_send_msg Email to $user_send_to_addr"
+	F_log_terminal_ok "Success, finished sending ${fwd_send_msg} Email to ${user_send_to_addr}"
 	return 0
 } # forward
 
@@ -1096,8 +1090,7 @@ F_opt_mail_log() {
 
 F_opt_reset() {
 	F_terminal_header
-	F_terminal_show "${tYEL}===== Script Reset Menu =====${tCLR}   E||e to Exit"
-	F_terminal_padding
+	F_menu_title "Script Reset Menu"
 	F_terminal_warning
 
 	if [ "$status_email_cfg" = 1 ] && [ "$backup_skip" != "1" ] ; then
@@ -1155,20 +1148,19 @@ F_opt_sample() {
 		sample_email=1
 		run_option='sample'
 		clear
-		F_terminal_show "Sample Email output:"
-		F_terminal_padding
+		F_menu_title "Sample ${1} Email Message"
 
 		if [ "$1" = 'reboot' ] ; then
-			F_reboot_email_msg
+			F_email_reboot
 		elif [ "$1" = 'wanip' ] ; then
-			current_wan_ip='111.222.33.44'   # fake for email
-			test_mode=1
-			F_wanip_email_msg
-			test_mode=0
+			current_wan_ip='123.145.167.189'   # fake for email
+			F_email_wanip
 		elif [ "$1" = 'firmware' ] ; then
-			new_fw_ver_pretty='xxx.xx_x'
-			firmware_subject="Asus router ${fw_device_model} ${fw_pulled_device_name} has Firmware Update available, version ${new_fw_ver_pretty}"
-			F_fw_update_email_msg
+			new_fw_ver_pretty='xxxx.xxx.xx_x'
+			F_email_fw_update
+		elif [ "$1" = 'update' ] ; then
+			update_avail='hotfix'
+			F_email_script_update
 		fi
 
 		sed '1,2!s/<[^>]*>//g' < "$mail_file"  | awk '{ while (length($0) > 58) { print substr($0, 1, 58); $0 = substr($0, 59) } print $0 }'
@@ -1183,11 +1175,10 @@ F_opt_sample() {
 	else
 		[ "$building_settings" = 1 ] && F_opt_sample wanip && return 0
 		F_terminal_header
-		F_terminal_show "${tYEL}===== Sample Email Menu =====${tCLR}   E||e to exit"
-		F_terminal_padding
+		F_menu_title "Sample Email Menu"
 		F_terminal_show "Which sample Email would you like to view?"
 		F_terminal_padding
-		F_terminal_show "  1) WAN IP   2) Reboot   3) Firmware"
+		F_terminal_show "  1) WAN IP   2) Reboot   3) Firmware   4) Script Update"
 		F_terminal_padding
 		F_terminal_check "Selection: "
 		while true ; do
@@ -1196,12 +1187,14 @@ F_opt_sample() {
 				1) F_opt_sample wanip ;;
 				2) F_opt_sample reboot ;;
 				3) F_opt_sample firmware ;;
+				4) F_opt_sample update ;;
 				E|e) F_clean_exit reload ;;
+				'') return 1 ;;
 				*)
 					F_terminal_erase
 					F_terminal_check_fail "Invalid Entry, any key to retry"
 					read -rsn1
-					F_opt_sample
+					return 1
 				;;
 			esac
 			return 1
@@ -1217,17 +1210,20 @@ F_opt_script() {
 		user_script_call_time=
 		user_custom_script=
 		user_custom_script_time=
+		F_terminal_check_ok "Custom WAN IP script saved path removed - ${tRED}disabled${tCLR}"
+		F_log "Custom WAN IP script saved path removed - disabled"
 		return 0
 	fi
 
-	F_terminal_header
-	F_terminal_show "${tYEL}===== Custom Script Path Entry Menu =====${tCLR}   E||e to exit"
-	F_terminal_padding
 	if [ "$status_wanipmon" = 0 ] ; then
+		F_menu_title "Custom Script Menu"
 		F_terminal_check_fail "WAN IP monitoring or WAN IP notifications are not enabled"
 		F_terminal_padding
-		F_terminal_show "Please enable either to add WAN IP change script"
+		F_terminal_show "Please enable either to add a script to run on WAN IP change"
 		F_menu_exit
+	else
+		F_terminal_header
+		F_menu_title "Custom Script Menu"
 	fi
 
 	F_ready_check options
@@ -1258,16 +1254,18 @@ F_opt_script() {
 						;;
 					esac
 					F_replace_var user_custom_script_time "$user_script_wait_entry" "$config_src"
-					F_terminal_check_ok "Done writing custom script execute time $user_script_wait_entry to script"
+					F_terminal_check_ok "Done writing custom script execute time ${user_script_wait_entry} to script"
 					user_custom_script_time="$user_script_wait_entry"
 				;;
 
 				E|e) F_clean_exit reload ;;
 
+				'') return 1 ;;
+
 				*)
 					F_terminal_check_fail "Invalid entry, any key to retry"
 					read -rsn1
-					F_opt_script
+					return 1
 				;;
 			esac
 			break
@@ -1278,9 +1276,8 @@ F_opt_script() {
 		read -rsn1
 
 		F_terminal_header
-		F_terminal_show "${tYEL}--- Custom Script Path Entry Menu ---${tCLR}   E||e to exit"
-		F_terminal_padding
-		F_terminal_show "Script execution set to : ${tGRN}$user_custom_script_time${tCLR}"
+		F_menu_title "Custom WAN IP Script Menu"
+		F_terminal_show "Script execution set to : ${tGRN}${user_custom_script_time}${tCLR}"
 		F_terminal_padding
 		F_terminal_show "Enter the full path to your script to be called"
 		F_terminal_show "eg. /jffs/scripts/customscript.sh"
@@ -1296,16 +1293,17 @@ F_opt_script() {
 				F_menu_exit
 			;;
 
-			"")
+			'')
+				F_terminal_padding
 				F_terminal_check_fail "Script path cannot be empty - Any key to retry"
 				read -rsn1
-				F_opt_script
+				return 1
 			;;
 		esac
 
 		if F_confirm correct "$user_custom_script_entry" ; then
 			if [ ! -f "$user_custom_script_entry" ] ; then
-				F_terminal_check_fail "Error - could not locate custom script $user_custom_script_entry"
+				F_terminal_check_fail "Error - could not locate custom script ${tGRN}${user_custom_script_entry}${tCLR}"
 				F_terminal_padding
 				F_terminal_show "Any key to return to the Main Menu"
 				F_replace_var user_custom_script_time '' "$config_src"
@@ -1319,7 +1317,7 @@ F_opt_script() {
 			custom_script_encoded="$(F_printfstr "$user_custom_script_entry" | /usr/sbin/openssl base64 | tr -d '\n')"   # base64 no worries of sed conflicts
 
 			if F_replace_var user_custom_script "$custom_script_encoded" "$config_src" ; then
-				F_terminal_check_ok "Done writing custom script path to wicens"
+				F_terminal_check_ok "Done saving custom script path '${user_custom_script_entry}' WAN IP Script ${tGRN}enabled${tCLR}"
 				user_custom_script="$user_custom_script_entry"
 				F_crlf "$user_custom_script"
 				F_chmod "$user_custom_script"
@@ -1334,21 +1332,23 @@ F_opt_script() {
 	else
 		F_terminal_show "Custom script path already set"
 		F_terminal_padding
-		F_terminal_show "${tGRN}${user_custom_script_decoded}${tCLR}"
+		F_terminal_show "Path: ${tGRN}${user_custom_script_decoded}${tCLR}"
 		F_terminal_padding
 
 		while true ; do
-			F_terminal_check "Y||y keep - N||n enter new - R||r remove current "
+			F_terminal_check "Y||y keep current - N||n enter new - R||r remove current "
 
 			read -rsn1 yesornowremove
 			case "$yesornowremove" in
-				Y|y) F_terminal_check_ok "Keeping currently saved custom script path" ;;
+				Y|y) F_terminal_check_ok "Keeping currently saved custom script path ${user_custom_script_decoded}" ;;
 
 				N|n) user_custom_script='' ; return 1 ;;
 
 				R|r) F_opt_script remove ;;
 
 				E|e) F_clean_exit reload ;;
+
+				'') F_printf "\r${tERASE}${tBACK}" ; continue ;;
 
 				*)
 					F_terminal_check_fail "Invalid entry, Y||y N||n R||r - Any to key to retry"
@@ -1363,17 +1363,16 @@ F_opt_script() {
 } # script
 
 F_opt_subject_select() {
-	F_terminal_header
-	F_terminal_show "${tYEL}===== Custom Subject Menu =====${tCLR}   E||e to exit"
-	F_terminal_padding
+	[ "$status_email_cfg" = 1 ] && F_terminal_header
+	F_menu_title "Custom Subject Menu"
 	F_ready_check options
 	F_terminal_show "Enter which Email subject line you wish to customize"
 	F_terminal_padding
 	[ -n "$user_custom_subject_decoded" ] && sw="${tGRN}"
-	[ -n "$user_custom_subject_decoded_r" ] && sr="${tGRN}"
-	[ -n "$user_custom_subject_decoded_f" ] && sf="${tGRN}"
-	[ -n "$user_custom_subject_decoded_s" ] && ss="${tGRN}"
-	F_terminal_show " 1) ${sw}WAN IP${tCLR}  2) ${sr}Reboot${tCLR}  3) ${sf}Firmware${tCLR}  4) ${ss}Script${tCLR}"
+	[ -n "$user_custom_subject_r_decoded" ] && sr="${tGRN}"
+	[ -n "$user_custom_subject_f_decoded" ] && sf="${tGRN}"
+	[ -n "$user_custom_subject_s_decoded" ] && ss="${tGRN}"
+	F_terminal_show "  1) ${sw}WAN IP${tCLR}  2) ${sr}Reboot${tCLR}  3) ${sf}Firmware${tCLR}  4) ${ss}Script${tCLR}"
 	F_terminal_padding
 	subject_select=
 
@@ -1383,6 +1382,7 @@ F_opt_subject_select() {
 		case "$subject_pick" in
 			1|2|3|4) break ;;
 			e|E) F_clean_exit reload ;;
+			'') F_printf "${tBACK}${tERASE}${tBACK}" ; continue ;;
 			*) F_terminal_erase ; F_fail_entry ;;
 		esac
 	done
@@ -1390,61 +1390,70 @@ F_opt_subject_select() {
 	if [ "$subject_pick" = 1 ] ; then
 		subject_select=user_custom_subject
 		sub_dec="$user_custom_subject_decoded"
-		current_sub="$wan_subject"  # var name for subjects
+		if [ -z "$user_custom_subject" ]
+		then current_sub="$wan_subject"  # var name for subjects
+		else current_sub="$user_custom_subject_decoded"
+		fi
 		subject_id='WAN IP'
 	elif [ "$subject_pick" = 2 ] ; then
 		subject_select=user_custom_subject_r
-		sub_dec="$user_custom_subject_decoded_r"
-		current_sub="$reboot_subject"
+		sub_dec="$user_custom_subject_r_decoded"
+		if [ -z "$user_custom_subject_r" ]
+		then current_sub="$reboot_subject"
+		else current_sub="$user_custom_subject_r_decoded"
+		fi
 		subject_id='Reboot'
 	elif [ "$subject_pick" = 3 ] ; then
 		subject_select=user_custom_subject_f
-		sub_dec="$user_custom_subject_decoded_f"
-		current_sub="$firmware_subject"
+		sub_dec="$user_custom_subject_f_decoded"
+		if [ -z "$user_custom_subject_f_decoded" ]
+		then current_sub="$firmware_subject"
+		else current_sub="$user_custom_subject_f_decoded"
+		fi
 		subject_id='Firmware'
 	elif [ "$subject_pick" = 4 ] ; then
 		subject_select=user_custom_subject_s
-		sub_dec="$user_custom_subject_decoded_s"
-		current_sub="$script_subject"
+		sub_dec="$user_custom_subject_s_decoded"
+		if [ -z "$user_custom_subject_s_decoded" ]
+		then current_sub="$script_subject"
+		else current_sub="$user_custom_subject_s_decoded"
+		fi
 		subject_id='Script update'
 	fi
-	F_opt_subject
+	until F_opt_subject ; do : ; done
 }
 
 F_opt_subject() {
 	F_terminal_header
-	F_terminal_show "${tYEL}===== Custom Subject Menu =====${tCLR}   E||e to exit"
-	F_terminal_padding
-	F_ready_check options
-	F_terminal_show "Custom Subject msg type : ${tGRN}$subject_id${tCLR}"
+	F_menu_title "Custom Subject Menu"
+	F_terminal_show "Custom subject Email type : ${tGRN}${subject_id}${tCLR}"
 	F_terminal_padding
 	if eval "[ -z \"\${$subject_select}\" ]" ; then
 		F_terminal_show "Enter the text for a custom Email Subject line you wish to use"
 		F_terminal_padding
 		F_terminal_show "Current subject: ${tGRN}${current_sub}${tCLR}"
 		F_terminal_padding
-		if [ "$subject_pick" = 1 ] ; then
-			F_terminal_show "If you wish to use the new or old WAN IP, add the variable names"
-			F_terminal_show "\$current_wan_ip and \$saved_wan_ip to your text (like shown)"
-			F_terminal_show "Model of router is \$fw_device_model"
-			F_terminal_show "Router device name is \$fw_pulled_device_name"
-			F_terminal_show "Router domain name is \$fw_pulled_lan_name"
-			F_terminal_show "LAN IP is \$fw_lan_addr"
-			F_terminal_padding
-		fi
-
+		F_terminal_show "Useable variable names can be added like shown"
+		F_terminal_show "New WAN IP is \$current_wan_ip"
+		F_terminal_show "Saved/Old WAN IP is \$saved_wan_ip"
+		F_terminal_show "Model of router is \$fw_device_model"
+		F_terminal_show "Router device name is \$fw_pulled_device_name"
+		F_terminal_show "Router domain name is \$fw_pulled_lan_name"
+		F_terminal_show "LAN IP is \$fw_lan_addr"
+		F_terminal_show "New FW ver is \$new_fw_ver_pretty *fw update"
+		F_terminal_show "Or any other var from the wicens config files"
+		F_terminal_padding
 		F_terminal_entry "Subject: "
 
 		read -r user_custom_subject_entry
-		[ -z "$user_custom_subject_entry" ] && return 1
 		case "$user_custom_subject_entry" in
 			E|e) F_clean_exit reload ;;
+			'') return 1 ;;
 		esac
 
 		if F_confirm correct "$user_custom_subject_entry" ; then
 			custom_subject_encoded="$(F_printfstr "$user_custom_subject_entry" | /usr/sbin/openssl base64 | tr -d '\n')"
 			if F_replace_var "$subject_select" "$custom_subject_encoded" "$config_src" ; then
-				#user_custom_subject="$user_custom_subject_entry"
 				F_terminal_check_ok "Done, ${subject_select} set to : ${user_custom_subject_entry}"
 			else
 				F_terminal_check_fail "Error, sed failed to write custom subject to script"
@@ -1466,11 +1475,11 @@ F_opt_subject() {
 			read -rsn1 yesornowremovesub
 			case "$yesornowremovesub" in
 				Y|y) F_terminal_check_ok "Keeping currently saved custom Email subject text" ;;
-				N|n) eval "$subject_select=\"\"" ; return 1 ;;
+				N|n) eval "${subject_select}=" ; until F_opt_subject ; do : ; done ;;
 				R|r)
 					if F_replace_var "$subject_select" '' "$config_src" ; then
 						F_terminal_check_ok "Custom subject text cleared"
-						eval "$subject_select="
+						eval "${subject_select}="
 					else
 						F_terminal_check_fail "Error, sed failed to clear custom subject text"
 						F_menu_exit
@@ -1478,6 +1487,8 @@ F_opt_subject() {
 				;;
 
 				E|e) F_clean_exit reload ;;
+
+				'') return 1 ;;
 
 				*)
 					F_terminal_check_fail "Invalid entry, Y||y N||n R||r - Any to key to retry"
@@ -1493,39 +1504,39 @@ F_opt_subject() {
 
 F_opt_test() {
 	F_terminal_header
-	F_terminal_show "${tYEL}===== Test Email Menu =====${tCLR}   E||e to exit"
-	F_terminal_padding
+	F_menu_title "Test Email Menu"
 	F_terminal_show "Choose the Email message type you'd like to receive"
 	F_terminal_padding
-	F_terminal_show "1) WAN IP 2) Router Reboot 3) Firmware"
+	F_terminal_show "1) WAN IP   2) Router Reboot   3) Firmware   4) Script Update"
 	F_terminal_padding
-	F_terminal_check "Selection (1/2/3) : "
+	F_terminal_check "Selection: "
 	read -r emailtesttype
 	case "$emailtesttype" in
-		1|2|3)
+		1|2|3|4)
+			test_mode=1
 			F_terminal_header
 			F_ready_check options
-			F_terminal_check_ok "Started Email Test message to ${user_send_to_addr}"
-			test_mode=1
+			F_terminal_check_ok "Starting an Email Test message"
 			run_option='test'
 			case "$emailtesttype" in
 				1)
 					current_wan_ip='x.x.x.x TEST'
-					F_wanip_email_msg  # return to menu or exit in F_wanip_email
+					F_email_wanip  # return to menu or exit in F_email_wanip
 				;;
-				2) F_reboot_email_msg ; F_menu_exit ;;
-				3) F_fw_update_email_msg ; F_menu_exit ;;
+				2) F_email_reboot ; F_menu_exit ;;
+				3) F_email_fw_update ; F_menu_exit ;;
+				4) update_avail='hotfix' ; F_internet_check ; F_email_script_update ; F_menu_exit ;;
 			esac
 		;;
 		e|E) F_clean_exit reload ;;
+		'') return 1 ;;
 		*) F_fail_entry ;;
 	esac
 } # test
 
 F_opt_text_select() {
-	F_terminal_header
-	F_terminal_show "${tYEL}===== Custom Email Text Entry Menu =====${tCLR}   E||e to exit"
-	F_terminal_padding
+	[ "$status_email_cfg" = 1 ] && F_terminal_header
+	F_menu_title "Custom Email text entry menu"
 	F_ready_check options
 	F_terminal_show "Enter which Email you wish to add custom text to"
 	F_terminal_padding
@@ -1542,7 +1553,8 @@ F_opt_text_select() {
 		read -r text_pick
 		case "$text_pick" in
 			1|2|3|4) break ;;
-			e|E) F_clean_exit reload ;;
+			E|e) F_clean_exit reload ;;
+			'') F_terminal_erase ; F_printf "${tBACK}" ;;
 			*) F_terminal_erase ; F_fail_entry ;;
 		esac
 	done
@@ -1565,30 +1577,29 @@ F_opt_text_select() {
 		text_id='Script update'
 	fi
 
-	F_opt_text
+	until F_opt_text ; do : ; done
 }
 
 F_opt_text() {
 	F_terminal_header
-	F_terminal_show "${tYEL}===== Custom Text Entry Menu =====${tCLR}   E||e to exit"
-	F_terminal_padding
-	F_terminal_show "Current text msg type: ${tGRN}${text_id}${tCLR}"
+	F_menu_title "Custom Email text entry menu"
+	F_terminal_show "Custom text message Email type: ${tGRN}${text_id}${tCLR}"
 	F_terminal_padding
 
 	if eval "[ -z \"\${$text_select}\" ]" ; then
-	#if [ -z "$user_custom_text" ] ; then
 		F_terminal_show "Enter your line of custom plain text to add to the Email message"
 		F_terminal_show "eg.  Router hidden in moms closet, 2 vpn clients to update"
-		F_terminal_show "Entry must be one line, can use \\\n to create new line in Email msg"
+		F_terminal_show "Entry must be one line, can use \\\n to create new line in Email message"
+		F_terminal_show "Try to avoid using shell escape sequences like \\\ only \\\n is supported"
+		F_terminal_show "Can also add any variable from wicens config files"
 		F_terminal_padding
 		F_terminal_entry "Text : "
 
 		read -r user_custom_text_entry
-		F_terminal_padding
-		# ensure we empty any saved vars if brought here by N new entry but left entry blank
-		[ -z "$user_custom_text_entry" ] && F_replace_var user_custom_text '' "$config_src" && return 1
+
 		case "$user_custom_text_entry" in
 			E|e) F_clean_exit reload ;;
+			'') return 1 ;;
 		esac
 
 		if F_confirm correct "$user_custom_text_entry" ; then
@@ -1610,13 +1621,14 @@ F_opt_text() {
 			read -rsn1 yesornowremove
 			case "$yesornowremove" in
 				Y|y) F_terminal_check_ok "Keeping currently saved custom text" ;;
-				N|n) eval "$text_select=\"\"" ; return 1 ;;
+				N|n) eval "${text_select}=" ; until F_opt_text ; do : ; done ;;
 				R|r)
 					F_replace_var "$text_select" '' "$config_src"
 					F_terminal_check_ok "Done, custom text cleared"
-					user_custom_text=''
+					eval "${text_select}="
 				;;
 				E|e) F_clean_exit reload ;;
+				'') return 1 ;;
 				*)
 					F_terminal_check_fail "Invalid entry, Y||y N||n R||r - Any to key to retry"
 					read -rsn1
@@ -1672,6 +1684,24 @@ F_opt_uninstall() {
 	done
 } # uninstall
 
+F_opt_var_format() {
+	eval 'unformatted_custom=${'"$1"'}'
+	for file_read in "$config_src" "$update_src" ; do   # read config files make varlist
+		while IFS= read -r configline ; do
+			configline="${configline%%#*}"   # strip comments
+			case "$configline" in
+				*=*) F_printfstr "$configline"   # only get vars
+			esac
+		done < "$file_read" >> /tmp/wicens_varlist.txt
+	done
+
+	formatted_custom="$unformatted_custom"
+	while IFS='=' read -r varname varvalue ; do
+		formatted_custom="$(printf '%s\n' "$formatted_custom" | sed "s~[$]${varname}~${varvalue}~g ; s/'//g")"
+	done < /tmp/wicens_varlist.txt
+	rm -f /tmp/wicens_varlist.txt
+} # var_format
+
 # NOTIFY OPTIONS ######################################################################################################
 #######################################################################################################################
 
@@ -1680,9 +1710,11 @@ F_notify_firmware() {
 		'check')
 			status_fw=0
 			if grep -Fq "$script_name_full fwupdate" /jffs/scripts/update-notification 2> /dev/null ; then
+				case "$2" in
+					'status') return 0 ;;   # F_settings_test F_status
+				esac
 				[ "$status_email_cfg" = 1 ] && [ "$user_fw_update_notification" = 1 ] && \
 				[ "$status_cru" = 1 ] && [ "$status_srvstrt" = 1 ] && status_fw=1
-				return 0
 			fi
 			return 1
 		;;
@@ -1707,7 +1739,7 @@ F_notify_firmware() {
 			else
 				{
 					F_printfstr '#!/bin/sh'
-					F_printfstr "# Created by $script_name_full for WAN IP change notification   # added by wicens $(F_date r)"
+					F_printfstr "# Created by ${script_name_full} for WAN IP change notification   # added by wicens $(F_date r)"
 					F_printfstr "nohup sh ${script_name_full} fwupdate & wicenspid=\$!  # added by wicens $(F_date r)"
 					F_printfstr "/usr/bin/logger -t \"update-notification[\$\$]\" \"Started wicens with pid \${wicenspid}\"   # added by wicens $(F_date r)"
 				} > /jffs/scripts/update-notification
@@ -1718,7 +1750,8 @@ F_notify_firmware() {
 
 			F_replace_var user_fw_update_notification 1 "$config_src"
 			F_auto_run create2
-			F_log_terminal_ok "Enabled Firmware update Email notification"
+			F_terminal_check_ok "Firmware update Email notification ${tGRN}enabled${tCLR}"
+			F_log "Firmware update Email notification enabled"
 			return 0
 		;;
 
@@ -1743,7 +1776,7 @@ F_notify_firmware() {
 
 			F_replace_var user_fw_update_notification 0 "$config_src"
 			user_fw_update_notification=0
-			[ "$2" != 'un' ] && F_log_terminal_ok "Disabled Firmware update Email notifcation"
+			[ "$2" != 'un' ] && F_log "Firmware update Email notifcation disabled" && F_terminal_check_ok "Firmware update Email notification ${tRED}disabled${tCLR}"
 
 			if [ "$user_wanip_notification" = 0 ] && [ "$user_reboot_notification" = 0 ] && [ "$user_update_notification" = 0 ] && [ "$user_wanip_monitor" = 0 ] ; then
 				if [ "$2" != 'un' ] ; then
@@ -1754,7 +1787,7 @@ F_notify_firmware() {
 		;;
 	esac
 
-	F_terminal_show "${tYEL}===== Firmware update notification enable/disable =====${tCLR}"
+	F_menu_title "Firmware update notification enable/disable"
 
 	if [ "$fw_build_no" -eq 374 ] ; then
 		F_terminal_show "Sorry, this version of firmware is not compatible"
@@ -1766,7 +1799,6 @@ F_notify_firmware() {
 	elif [ "$user_fw_update_notification" -eq 1 ] ; then
 		F_notify_firmware remove
 	else
-		F_terminal_padding
 		F_terminal_check_fail "Error - invalid Email settings, use Main Menu to add settings"
 	fi
 	F_menu_exit
@@ -1777,9 +1809,11 @@ F_notify_reboot() {
 		'check')
 			status_reboot=0
 			if grep -Fq "$script_name_full reboot" /jffs/scripts/services-start 2> /dev/null ; then
+				case "$2" in
+					'status') return 0 ;;   # F_settings_test F_status
+				esac
 				[ "$status_email_cfg" = 1 ] && [ "$user_reboot_notification" = 1 ] && \
 				[ "$status_cru" = 1 ] && [ "$status_srvstrt" = 1 ] && status_reboot=1
-				return 0
 			fi
 			return 1
 		;;
@@ -1816,7 +1850,7 @@ F_notify_reboot() {
 			F_replace_var user_reboot_notification 1 "$config_src"
 			user_reboot_notification=1
 			F_auto_run create2
-			F_log_terminal_ok "Enabled router reboot Email notification"
+			F_log "Router reboot Email notification enabled" && F_terminal_check_ok "Router reboot Email notification ${tGRN}enabled${tCLR}"
 			return 0
 		;;
 
@@ -1840,7 +1874,7 @@ F_notify_reboot() {
 			fi
 			F_replace_var user_reboot_notification 0 "$config_src"
 			user_reboot_notification=0
-			[ "$2" != 'un' ] && F_log_terminal_ok "Disabled router reboot Email notification"
+			[ "$2" != 'un' ] && F_log "router reboot Email notification disabled" && F_terminal_check_ok "Router reboot Email notification ${tRED}disabled${tCLR}"
 
 			if [ "$user_wanip_notification" = 0 ] && [ "$user_fw_update_notification" = 0 ] && [ "$user_update_notification" = 0 ] && [ "$user_wanip_monitor" = 0 ] ; then
 				if [ "$2" != 'un' ] ; then
@@ -1851,13 +1885,12 @@ F_notify_reboot() {
 		;;
 	esac
 
-	F_terminal_show "${tYEL}===== Router reboot notification enable/disable =====${tCLR}"
+	F_menu_title "Router reboot notification enable/disable"
 	if [ "$status_email_cfg" = 1 ] && [ "$user_reboot_notification" = 0 ] ; then
 		F_notify_reboot create
 	elif [ "$user_reboot_notification" = 1 ] ; then
 		F_notify_reboot remove
 	else
-		F_terminal_padding
 		F_terminal_check_fail "Error - invalid Email settings, use Main Menu to add settings"
 	fi
 	F_menu_exit
@@ -1877,7 +1910,8 @@ F_notify_update() {
 			F_replace_var update_cron_epoch 0 "$update_src"
 			F_replace_var user_update_notification 1 "$config_src"
 			user_update_notification=1
-			F_log_terminal_ok "Enabled script update Email notification"
+			F_terminal_check_ok "Script update Email notification ${tGRN}enabled${tCLR}"
+			F_log "Script update Email notification enabled"
 			return 0
 		;;
 
@@ -1887,19 +1921,19 @@ F_notify_update() {
 			fi
 			F_replace_var user_update_notification 0 "$config_src"
 			user_update_notification=0
-			F_log_terminal_ok "Disabled script update Email notification"
+			F_terminal_check_ok "Script update Email notification ${tRED}disabled${tCLR}"
+			F_log "Script update Email notification disabled"
 			return 0
 		;;
 	esac
 
-	F_terminal_show "${tYEL}===== Script update notification enable/disable =====${tCLR}"
+	F_menu_title "Script update Email notification enable/disable"
 
 	if [ "$status_email_cfg" = 1 ] && [ "$user_update_notification" = 0 ] ; then
 		F_notify_update create
 	elif [ "$user_update_notification" = 1 ] ; then
 		F_notify_update remove
 	else
-		F_terminal_padding
 		F_terminal_check_fail "Error - invalid Email settings, use Main Menu to edit settings"
 	fi
 	F_menu_exit
@@ -1920,7 +1954,8 @@ F_notify_wanip() {
 		'create')
 			F_replace_var user_wanip_notification 1 "$config_src"
 			! F_wanip_monitor check && F_wanip_monitor create
-			F_log_terminal_ok "Enabled WAN IP change Email notification"
+			F_terminal_check_ok "WAN IP change Email notification ${tGRN}enabled${tCLR}"
+			F_log "WAN IP change Email notification enabled"
 			user_wanip_notification=1
 			return 0
 		;;
@@ -1928,15 +1963,24 @@ F_notify_wanip() {
 		'remove')
 			if [ "$2" != 'nouser' ] ; then
 				F_terminal_header
-				[ "$2" = 'mon' ] && F_terminal_show "${tYEL}===== WAN IP change monitor enable/disable =====${tCLR}" && F_terminal_padding
-				F_terminal_warning
-				F_terminal_show "This will disable WAN IP change Email notification"
+				if [ "$2" = 'mon' ] ; then
+					F_menu_title "WAN IP change monitor enable/disable"
+					F_terminal_check_ok "Disabling WAN IP monitor...\n"
+					F_terminal_warning
+					F_terminal_show "This will disable WAN IP change Email notification and monitoring"
+				else
+					F_menu_title "WAN IP change notification enable/disable"
+					F_terminal_warning
+					F_terminal_show "This will disable WAN IP change Email notification"
+				fi
+
 				F_terminal_show "You will not receive an Email notification if your WAN IP changes."
 				if F_confirm "Are you sure you wish to disable?" ; then
 					F_terminal_check_ok "Ok received, disabling..."
 					F_replace_var user_wanip_notification 0 "$config_src"
 					user_wanip_notification=0
-					F_log_terminal_ok "Disabled WAN IP Email notification"
+					F_terminal_check_ok "WAN IP Email notification ${tRED}disabled${tCLR}"
+					F_log "WAN IP Email notification disabled"
 					return 0
 				else
 					F_terminal_check_ok "No received, exiting..."
@@ -1945,13 +1989,13 @@ F_notify_wanip() {
 			else
 				F_replace_var user_wanip_notification 0 "$config_src"
 				user_wanip_notification=0
-				F_log_terminal_ok "Disabled WAN IP change Email notfication"
+				F_log "WAN IP change Email notfication disabled"
 				return 0
 			fi
 		;;
 	esac
 
-	F_terminal_show "${tYEL}===== WAN IP change notification enable/disable =====${tCLR}"
+	F_menu_title "WAN IP change notification enable/disable"
 
 	if [ "$status_email_cfg" = 1 ] && [ "$user_wanip_notification" = 0 ] ; then
 		if [ "$dual_wan_check" = 1 ] && [ "$(F_nvram wans_dualwan)" != 'wan none' ] ; then
@@ -1962,7 +2006,6 @@ F_notify_wanip() {
 	elif [ "$user_wanip_notification" = 1 ] ; then
 		F_notify_wanip remove
 	else
-		F_terminal_padding
 		F_terminal_check_fail "Error - invalid Email settings, use Main Menu to add settings"
 	fi
 	F_menu_exit
@@ -1985,7 +2028,8 @@ F_wanip_monitor() {
 			F_auto_run createall
 			! F_compare && F_script_wan_update
 			F_replace_var user_wanip_monitor 1 "$config_src"
-			F_log_terminal_ok "Enabled WAN IP change monitoring"
+			F_terminal_check_ok "WAN IP change monitoring ${tGRN}enabled${tCLR}"
+			F_log "WAN IP change monitoring enabled"
 			return 0
 		;;
 
@@ -1999,13 +2043,12 @@ F_wanip_monitor() {
 			fi
 
 			F_replace_var user_wanip_monitor 0 "$config_src"
-			[ "$2" != 'un' ] && F_log_terminal_ok "Disabled WAN IP change monitoring"
 			if [ "$user_wanip_notification" = 0 ] && [ "$user_fw_update_notification" = 0 ] && [ "$user_update_notification" = 0 ] && [ "$user_reboot_notification" = 0 ] ; then
 				[ "$2" != 'un' ] && F_auto_run removeall
 			else
 				if [ "$fw_sw_mode" = 1 ]
 				then F_wan_event remove
-				else F_terminal_check_ok "Not in router mode, skipping wan-event removal"
+				else F_terminal_check_ok "Not in router mode skipping wan-event removal"
 				fi
 			fi
 
@@ -2014,11 +2057,13 @@ F_wanip_monitor() {
 				F_opt_script remove
 			fi
 
+			[ "$2" != 'un' ] && F_log "WAN IP change monitoring disabled" && F_terminal_check_ok "WAN IP change monitoring ${tRED}disabled${tCLR}"
+
 			return 0
 		;;
 	esac
 
-	F_terminal_show "${tYEL}===== WAN IP change monitor enable/disable =====${tCLR}"
+	F_menu_title "WAN IP change monitor enable/disable"
 	if [ "$user_wanip_monitor" = 0 ]
 	then F_wanip_monitor create
 	else F_wanip_monitor remove
@@ -2158,9 +2203,9 @@ F_send_type() {
 
 	if [ "$user_message_type" != 'smtp_isp_nopswd' ] && [ "$user_message_type" != 'smtp_plain_auth' ] ; then
 		F_terminal_header ; F_terminal_warning
-		F_terminal_show "If using GMail for your sending service you must have"
-		F_terminal_show "2 factor authentication enabled and create a App"
-		F_terminal_show "password for this script to use"
+		F_terminal_show "If using GMail/Outlook etc. many providers require"
+		F_terminal_show "2 factor authentication be enabled and you must"
+		F_terminal_show "create an application password for this script to use"
 		F_terminal_padding ; F_terminal_check "Any key to continue" && read -rsn1
 	fi
 
@@ -2459,8 +2504,7 @@ F_build_settings() {
 
 F_edit_settings() {
 	F_terminal_header
-	F_terminal_show "${tYEL}===== Welcome to the wicens Email config editor =====${tCLR}   E||e to exit"
-	F_terminal_padding
+	F_menu_title "wicens Email config editor"
 	if [ "$amtm_import" = 1 ] ; then
 		F_terminal_check_fail "amtm import currently enabled, edit menu unavailable"
 		F_terminal_padding
@@ -2588,7 +2632,8 @@ F_amtm() {
 			building_settings=1
 			F_replace_var amtm_import 1 "$config_src"
 			F_replace_var created_date "$(F_date f)" "$config_src"
-			F_log_terminal_ok "amtm Email settings enabled"
+			F_terminal_check_ok "amtm Email settings ${tGRN}enabled${tCLR}"
+			F_log "amtm Email settings enabled"
 			F_amtm load
 			building_settings=0
 			return 0
@@ -2608,7 +2653,8 @@ F_amtm() {
 
 		'remove')
 			F_replace_var amtm_import 0 "$config_src"
-			F_log_terminal_ok "amtm Email settings disabled"
+			F_terminal_check_ok "amtm Email settings ${tRED}disabled${tCLR}"
+			F_log "amtm Email settings disabled"
 			F_user_settings
 			F_replace_var created_date '' "$config_src"   # set created date blank
 			[ "$status_email_cfg" = 1 ] && F_replace_var created_date "$(F_date f)" "$config_src"   # script has saved settings that are good
@@ -2616,7 +2662,7 @@ F_amtm() {
 		;;
 	esac
 
-	F_terminal_show "${tYEL}===== amtm Email config sync enable/disable =====${tCLR}"
+	F_menu_title "amtm Email config sync enable/disable"
 
 	if [ "$status_amtm" = 1 ] && [ "$amtm_import" = 0 ] ; then
 		F_amtm create
@@ -2635,8 +2681,7 @@ F_amtm() {
 F_email_eg() {
 	sample_email=1
 	F_terminal_header
-	F_terminal_show "${tYEL}===== wicens Email instructions =====${tCLR}   E||e to exit"
-	F_terminal_padding
+	F_menu_title "wicens Email instructions"
 	F_terminal_show "Your script should create the text file containing the information below."
 	F_terminal_show "For plain text Email only, please research how to implement HTML if needed"
 	F_printf "$tGRN"
@@ -2659,12 +2704,20 @@ F_email_eg() {
 	F_menu_exit
 } # email_eg
 
-F_fw_update_email_msg() {
-	if [ "$sample_email" = 0 ] ; then
-		new_fw_ver="$(F_nvram webs_state_info)"
-		new_fw_ver_pretty="$(F_printfstr "$new_fw_ver" | awk -F '_' '{print $2 "." $3 "_" $4}')"
-		F_log_terminal_ok "Sending Email notification for available firmware update - v${new_fw_ver_pretty}"
+F_email_fw_update() {
+	[ "$sample_email" = 0 ] && new_fw_ver="$(F_nvram webs_state_info)"
+	if [ -z "$new_fw_ver_pretty" ] ; then
+		new_fw_ver_pretty="$(F_printfstr "$new_fw_ver" | awk -F '_' '{print $1 "." print $2 "." $3 "_" $4}')"   # pretty set in sample_email
 	fi
+
+	source "$update_src"   # if default subject this needs reloaded as new_fw_ver_pretty is now set
+
+	if [ "$test_mode" = 1 ] ; then
+		F_log_terminal_ok "Sending Test Email for available firmware update to ${user_send_to_addr}"
+	elif [ "$sample_email" = 0 ] ; then
+		F_log_terminal_ok "Sending Email for available firmware update v${new_fw_ver_pretty} to ${user_send_to_addr}"
+	fi
+
 	[ -f "$fw_email" ] && rm -f "$fw_email"
 	mail_file="$fw_email"
 
@@ -2673,9 +2726,11 @@ F_fw_update_email_msg() {
 		F_printfstr "From: \"${user_email_from}\" <${user_from_addr}>"
 		F_printfstr "To: \"${user_msg_to}\" <${user_send_to_addr}>"
 		[ -n "$user_send_to_cc" ] && F_printfstr "Cc: ${user_send_to_cc}"
-		if [ -z "$user_custom_subject_decoded_f" ]
-		then F_printfstr "Subject: ${firmware_subject}"
-		else F_printfstr "Subject: ${user_custom_subject_decoded_f}"
+		if [ -z "$user_custom_subject_f_decoded" ] ; then
+			F_printfstr "Subject: ${firmware_subject}"   # default subject
+		else
+			F_opt_var_format user_custom_subject_f_decoded
+			F_printfstr "Subject: ${formatted_custom}"
 		fi
 		F_printfstr "Date: $(F_date r)"
 
@@ -2697,15 +2752,15 @@ F_fw_update_email_msg() {
 		else
 			F_printfp "<b>********** NOTICE **********</b>"
 		fi
-		F_printfp "<b>A newer firmware version is available for ASUS router</b>"
+		F_printfp "<b>A newer firmware version is available for your ASUS router</b>"
 		F_email_seperator
 		F_printfpre "Model                : ${fw_device_model}"
 		F_printfpre "Host/Domain          : ${fw_pulled_device_name}.${fw_pulled_lan_name}"
 		F_printfpre "LAN IP               : ${fw_lan_addr}"
-		F_printfp "Installed fw version : ${fw_build_full}"
+		F_printfp "Installed fw version : ${fw_base}.${fw_build_full}"
 		F_printfp "Available fw version : <b>${new_fw_ver_pretty}</b>"
 		F_printfp "Visit <a href=\"https://www.asuswrt-merlin.net\">https://www.asuswrt-merlin.net</a>"
-		[ -n "$user_custom_text_f" ] && F_email_seperator && F_printfpre "$(F_printf "${user_custom_text_f_decoded}")"
+		[ -n "$user_custom_text_f" ] && F_email_seperator && F_opt_var_format user_custom_text_f_decoded && F_printfepre "$(F_printf "${formatted_custom}")"
 		F_email_seperator
 		F_printfp "Message sent: $(F_date f)"
 		F_printfp "Script ran with option : ${run_option}"
@@ -2731,6 +2786,7 @@ F_fw_update_email_msg() {
 	fi
 
 	F_internet_check fwupdate
+	F_terminal_check "Sending..."
 
 	if ! F_send_email; then
 		F_log_terminal_fail "Error, failed to send firmware update Email notification"
@@ -2743,12 +2799,17 @@ F_fw_update_email_msg() {
 	user_pswd=''
 	rm -f "$fw_email"
 	rm -f "$wicens_fw_retry" 2> /dev/null  # remove cron retry file
-	F_log_terminal_ok "Finished sending firmware update Email notification"
+	F_log_terminal_ok "Success sending firmware update Email notification"
 	F_replace_var fw_notify_state 0 "$update_src"   # set 1 by caller, set 0 on success
 	return 0
 } # fw_update_email_msg
 
-F_script_update_email_msg() {
+F_email_script_update() {
+	if [ "$test_mode" = 1 ] ; then
+		F_log_terminal_ok "Sending Test Email for script update to ${user_send_to_addr}"
+	elif [ "$sample_email" = 0 ] ; then
+		F_log_terminal_ok "Sending Email for available script update v${update_avail} to ${user_send_to_addr}"
+	fi
 	[ -f "$update_email" ] && rm -f "$update_email"
 	mail_file="$update_email"
 
@@ -2757,23 +2818,29 @@ F_script_update_email_msg() {
 		F_printfstr "From: \"${user_email_from}\" <${user_from_addr}>"
 		F_printfstr "To: \"${user_msg_to}\" <${user_send_to_addr}>"
 		[ -n "$user_send_to_cc" ] && F_printfstr "Cc: ${user_send_to_cc}"
-		if [ -z "$user_custom_subject_decoded_s" ]
-		then F_printfstr "Subject: ${script_subject}"
-		else F_printfstr "Subject: ${user_custom_subject_decoded_s}"
+		if [ -z "$user_custom_subject_s_decoded" ] ; then
+			F_printfstr "Subject: ${script_subject}"   # default subject
+		else
+			F_opt_var_format user_custom_subject_s_decoded
+			F_printfstr "Subject: ${formatted_custom}"
 		fi
 		F_printfstr "Date: $(F_date r)"
 
-		# mime html
-		F_printfstr 'MIME-Version: 1.0'
-		F_printfstr 'Content-Type: text/html; charset="UTF-8"'
-		F_printfstr ''
-		F_printfstr '<!DOCTYPE html>'
-		F_printfstr '<html>'
-		F_printfstr '<body>'
+		if [ "$sample_email" = 0 ] ; then
+			# mime html
+			F_printfstr 'MIME-Version: 1.0'
+			F_printfstr 'Content-Type: text/html; charset="UTF-8"'
+			F_printfstr ''
+			F_printfstr '<!DOCTYPE html>'
+			F_printfstr '<html>'
+			F_printfstr '<body>'
+		else
+			F_terminal_padding
+		fi
 
 		# body
 		F_printfp "<b>********** NOTICE **********</b>"
-		F_printfp "<b>Update is available for wicens script</b>"
+		F_printfp "<b>Update is available for wicens script on your ASUS router</b>"
 		F_email_seperator
 		F_printfpre "Model       : ${fw_device_model}"
 		F_printfpre "Host/Domain : ${fw_pulled_device_name}.${fw_pulled_lan_name}"
@@ -2784,17 +2851,18 @@ F_script_update_email_msg() {
 				F_printfp "A <b>hotfix</b> is available for v${script_version} of wicens"
 				F_email_seperator # -----
 				F_printfp "Change log  :"
-				F_printfpre "$(/usr/sbin/curl -fsL --retry 3 --connect-timeout 5 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | /bin/sed -n "/^## $script_version/,/^##/p" | head -n -1 | /bin/sed 's/## //')<br><br>"
+				F_printfpre "$(F_git_get hotfix)<br><br>"
 			;;
 			*)
 				F_printfpre "Version     : <b>${update_avail}</b> is available"
 				F_email_seperator # -----
 				F_printfp "Change log  :"
-				F_printfpre "$(/usr/sbin/curl -fsL --retry 3 --connect-timeout 5 "https://raw.githubusercontent.com/maverickcdn/wicens/master/CHANGELOG.md" | /bin/sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | /bin/sed 's/## //')<br><br>"
+				F_printfpre "$(F_git_get update)<br><br>"
 			;;
 		esac
 		F_printfp "Run wicens script on your router and select option I||i to update"
-		[ -n "$user_custom_text_s" ] && F_email_seperator && F_printfpre "$(F_printf "${user_custom_text_s_decoded}")"
+		[ "$amtm_update" = 1 ] && F_printfp "Or run automatic updates in amtm"
+		[ -n "$user_custom_text_s" ] && F_email_seperator && F_opt_var_format user_custom_text_s_decoded && F_printfepre "$(F_printf "${formatted_custom}")"
 		F_email_seperator # -----
 		F_printfp "Message sent: $(F_date f)"
 		F_printfp "Script ran with option : ${run_option}"
@@ -2807,6 +2875,7 @@ F_script_update_email_msg() {
 
 	[ "$sample_email" = 1 ] && return 0
 	###########################################################################
+	F_terminal_check "Sending..."
 	if ! F_send_email; then
 		F_log_terminal_fail "Error, failed to send update Email notification"
 		user_pswd=''
@@ -2818,18 +2887,24 @@ F_script_update_email_msg() {
 	user_pswd=''
 	rm -f "$update_email"
 	rm -f "$wicens_update_retry"
-	F_log_terminal_ok "Finished sending update Email notification"
+	F_log_terminal_ok "Success sending update Email notification"
 	F_replace_var update_notify_state 1 "$update_src"
 	return 0
 } # script_update_email_msg
 
-F_reboot_email_msg() {
+F_email_reboot() {
 	router_reboot_downtime="$(($(F_date s) - router_reboot_downtime))"    # time between last saved record and reboot call = 'downtime'
+	if [ "$test_mode" = 1 ] ; then
+		F_log_terminal_ok "Sending Test Email for router reboot event to ${user_send_to_addr}"
+	elif [ "$sample_email" = 0 ] ; then
+		F_log_terminal_ok "Sending Email for router reboot event to ${user_send_to_addr}"
+	fi
+
 	[ -f "$reboot_email" ] && rm -f "$reboot_email"
 	mail_file="$reboot_email"
 	F_uptime
 
-	if [ "$sample_email" = 0 ] || [ "$test_mode" = 0 ] ; then
+	if [ "$sample_email" = 0 ] && [ "$test_mode" = 0 ] ; then
 		if [ ! -f '/tmp/wicens_reboot_uptime.tmp' ] ; then   # keep original found uptime for failed email retries
 			F_printfstr "$router_reboot_uptime" > /tmp/wicens_reboot_uptime.tmp
 			F_printfstr "$router_reboot_downtime" > /tmp/wicens_reboot_downtime.tmp
@@ -2850,9 +2925,11 @@ F_reboot_email_msg() {
 		F_printfstr "From: \"${user_email_from}\" <${user_from_addr}>"
 		F_printfstr "To: \"${user_msg_to}\" <${user_send_to_addr}>"
 		[ -n "$user_send_to_cc" ] && F_printfstr "Cc: ${user_send_to_cc}"
-		if [ -z "$user_custom_subject_decoded_r" ]
-		then F_printfstr "Subject: ${reboot_subject}"
-		else F_printfstr "Subject: ${user_custom_subject_decoded_r}"
+		if [ -z "$user_custom_subject_r_decoded" ] ; then
+			F_printfstr "Subject: ${reboot_subject}"   # default subject
+		else
+			F_opt_var_format user_custom_subject_r_decoded
+			F_printfstr "Subject: ${formatted_custom}"
 		fi
 		F_printfstr "Date: $(F_date r)"
 
@@ -2885,7 +2962,7 @@ F_reboot_email_msg() {
 		F_printfpre "Downtime after shutdown      : $(printf '%3dd %2dh %2dm %2dsec\n' $((router_reboot_downtime/86400)) $((router_reboot_downtime%86400/3600)) $((router_reboot_downtime%3600/60)) $((router_reboot_downtime%60))) *"
 		F_printfpre "Uptime saved prior to reboot : $(printf '%3dd %2dh %2dm %2dsec\n' $((router_reboot_uptime/86400)) $((router_reboot_uptime%86400/3600)) $((router_reboot_uptime%3600/60)) $((router_reboot_uptime%60))) *"
 		F_printfpre "* approx"
-		[ -n "$user_custom_text_r" ] && F_email_seperator && F_printfpre "${user_custom_text_r_decoded}"
+		[ -n "$user_custom_text_r" ] && F_email_seperator && F_opt_var_format user_custom_text_r_decoded && F_printfepre "$(F_printf "${formatted_custom}")"
 		F_email_seperator # -----
 		F_printfp "Message sent: $(F_date f)"
 		F_printfp "Script ran with option : ${run_option}"
@@ -2910,6 +2987,7 @@ F_reboot_email_msg() {
 	fi
 
 	F_internet_check reboot
+	F_terminal_check "Sending..."
 
 	if ! F_send_email; then
 		F_log_terminal_fail "Error - failed to send router reboot Email notification"
@@ -2929,29 +3007,27 @@ F_reboot_email_msg() {
 	return 0
 } # reboot_email_msg
 
-F_wanip_email_msg() {
-	[ "$sample_email" = 0 ] && F_log_terminal_ok "Attempting to send WAN IP change Email notification to $user_send_to_addr"
+F_email_wanip() {
+	if [ "$test_mode" = 1 ] ; then
+		F_log_terminal_ok "Sending Test Email for WAN IP change event to ${user_send_to_addr}"
+	elif [ "$sample_email" = 0 ] ; then
+		F_log_terminal_ok "Sending Email for WAN IP change to ${user_send_to_addr}"
+	fi
 	[ -f "$wanip_email" ] && rm -f "$wanip_email"
 	mail_file="$wanip_email"
 	F_uptime
-
-	if [ -n "$user_custom_subject_decoded" ] ; then
-		formatted_custom_subject="$(F_printfstr "$user_custom_subject_decoded" | \
-		/bin/sed "s~\$fw_device_model~$fw_device_model~g" | \
-		/bin/sed "s~\$current_wan_ip~$current_wan_ip~g" | \
-		/bin/sed "s~\$saved_wan_ip~$saved_wan_ip~g" | \
-		/bin/sed "s~\$fw_pulled_lan_name~$fw_pulled_lan_name~g" | \
-		/bin/sed "s~\$fw_pulled_device_name~$fw_pulled_device_name~g" | \
-		/bin/sed "s~\$fw_lan_addr~$fw_lan_addr~g")"
-		wan_subject="$formatted_custom_subject"
-	fi
 
 	{
 		# header
 		F_printfstr "From: \"${user_email_from}\" <${user_from_addr}>"
 		F_printfstr "To: \"${user_msg_to}\" <${user_send_to_addr}>"
 		[ -n "$user_send_to_cc" ] && F_printfstr "Cc: ${user_send_to_cc}"
-		F_printfstr "Subject: ${wan_subject}"
+		if [ -z "$user_custom_subject_decoded" ] ; then
+			F_printfstr "Subject: ${wan_subject}"   # default subject
+		else
+			F_opt_var_format user_custom_subject_decoded
+			F_printfstr "Subject: ${formatted_custom}"
+		fi
 		F_printfstr "Date: $(F_date r)"
 
 		# mime html
@@ -2972,10 +3048,10 @@ F_wanip_email_msg() {
 		else
 			F_printfp "<b>********** NOTICE **********</b>"
 		fi
-		F_printfp "<b>WAN IP address has changed</b>"
+		F_printfp "<b>WAN IP address for your ASUS router has changed</b>"
 		F_email_seperator # -----
 		F_printfpre "Model       : ${fw_device_model}"
-		F_printfp "Host/Domain : ${fw_pulled_device_name}.${fw_pulled_lan_name}"
+		F_printfpre "Host/Domain : ${fw_pulled_device_name}.${fw_pulled_lan_name}"
 		F_printfpre "LAN IP      : ${fw_lan_addr}"
 		F_email_seperator # -----
 		if F_printfstr "$current_wan_ip" | F_cgnat_ip ; then
@@ -2985,10 +3061,10 @@ F_wanip_email_msg() {
 		fi
 		F_printfpre "New WAN IP  : <b>${current_wan_ip}</b>"
 		F_printfpre "Old WAN IP  : ${saved_wan_ip}"
-		F_printfpre "Old WAN IP recorded in script   : ${saved_wan_date}"
-		F_printfpre "Old WAN IP lease time observed  : $(F_calc_lease)"
-		F_printfpre "Router uptime                   : ${uptime_pretty}"
-		[ -n "$user_custom_text" ] && F_email_seperator && F_printfpre "$(F_printf "${user_custom_text_decoded}")"   # preserve custom text new lines
+		F_printfpre "Old WAN IP recorded   : ${saved_wan_date}"
+		F_printfpre "Old WAN IP lease age  : $(F_calc_lease)"
+		F_printfpre "Current router uptime : ${uptime_pretty}"
+		[ -n "$user_custom_text" ] && F_email_seperator && F_opt_var_format user_custom_text_decoded && F_printfepre "$(F_printf "${formatted_custom}")"  # preserve custom text new lines
 
 		if [ -f "$history_src" ] ; then
 			F_email_seperator # -----
@@ -2996,15 +3072,15 @@ F_wanip_email_msg() {
 			then F_printfpre "            WAN IP history (last ${wan_history_count}) most recent first"
 			else F_printfpre "            WAN IP history most recent first"
 			fi
-			F_printfpre "    Time Found              IP             Leased time"
+			F_printfpre "$(printf '%-20s  %-15s  %s\n' "     Time Found" "     IP" "Lease Time")"
 			F_email_seperator # -----
 			tail -n "$wan_history_count" < "$history_src" | /bin/sed 'x;1!H;$!d;x' | /bin/sed 's/.*/<pre>&<\/pre>/'   # invert list
 		elif [ "$sample_email" = 1 ] || [ "$test_mode" = 1 ] ; then
 			F_email_seperator # -----
 			F_printfpre "            WAN IP history most recent first"
-			F_printfpre "    Time Found              IP             Leased Time"
+			F_printfepre "$(printf '%-20s  %-15s   %s\n' "     Time Found" "     IP" "Lease Time")"
 			F_email_seperator # -----
-			F_printfpre "Jan 01 2025 00:12:34  123.145.167.189   11d 12h 13m 14sec"
+			F_printfpre "$(date -d "@$(( $(date +%s) - 9671624 ))" '+%b %d %Y %H:%M:%S')  123.145.167.189  111d 22h 33m 44s"
 		fi
 
 		F_email_seperator # -----
@@ -3032,6 +3108,7 @@ F_wanip_email_msg() {
 	fi
 
 	F_internet_check wanip
+	F_terminal_check "Sending..."
 
 	if ! F_send_email; then
 		# wanip email failed
@@ -3061,10 +3138,10 @@ F_wanip_email_msg() {
 
 	case "$test_mode" in
 		0)
-			F_log_terminal_ok "Success sending Email notification, update devices to $current_wan_ip"
+			F_log_terminal_ok "Success sending WAN IPEmail notification, update devices to ${current_wan_ip}"
 			F_script_wan_update
 		;;
-		1) F_log_terminal_ok "Success sending test Email notification" ;;
+		1) F_log_terminal_ok "Success sending WAN IP Email notification" ;;
 	esac
 
 	case "$from_menu" in
@@ -3082,7 +3159,7 @@ F_wanip_email_msg() {
 
 F_send_email() {
 	[ -f "$mail_log" ] && rm -f "$mail_log"
-	F_printfstr "Created by PID $$ on $(F_date r), ran by $run_option" > "$mail_log"
+	F_printfstr "Created by PID $$ on $(F_date r), ran by ${run_option}" > "$mail_log"
 
 	case "$amtm_import" in
 		1) user_pswd="$(eval "$(F_printfstr "$amtm_d" | openssl base64 -d)" < "$amtm_cred_loc")" ;;
@@ -3159,7 +3236,7 @@ F_send_format_ssl() {
 F_web_update_check() {
 	if [ "$1" = 'force' ] ; then
 		F_terminal_header
-		F_terminal_show "${tYEL}===== Script Update Check =====${tCLR}"
+		F_menu_title "Script update check"
 	else   # update found running install, check again
 		[ "$update_avail" != 'none' ] && F_terminal_show "Confirming update ${tGRN}${update_avail}${tCLR} is most current "
 		orig_update="$update_avail"   # keep note of original found update
@@ -3181,7 +3258,7 @@ F_web_update_check() {
 
 	# start terminal timer wait for var to set and kill timer
 	F_time & child_pid="${child_pid} $!"
-	git_version="$(F_git_get file | grep -Fm1 'script_version=' | cut -d'=' -f2 | sed "s/'//g")"
+	git_version="$(F_git_get version)"
 	server_md5="$(F_git_get file | md5sum | awk '{print $1}')"
 	local_md5="$(md5sum "$script_name_full" | awk '{print $1}')"
 	sleep 2   # pretty terminal wait
@@ -3200,6 +3277,7 @@ F_web_update_check() {
 	if [ "$script_version" = "$git_version" ] ; then
 		if [ "$local_md5" != "$server_md5" ] ; then
 			F_replace_var update_avail "hotfix" "$update_src"
+			update_avail='hotfix'
 			F_log "Success checking for update... hotfix available"
 			F_terminal_check_ok "${tGRN}Success${tCLR} checking for update... ${tRED}hotfix${tCLR} available"
 			F_terminal_padding
@@ -3213,6 +3291,7 @@ F_web_update_check() {
 		fi
 	else
 		F_replace_var update_avail "$git_version" "$update_src"
+		update_avail="$git_version"
 		F_log "Success checking for update... v${git_version} available"
 		if [ "$1" = 'force' ] ; then   # manual update check
 			F_terminal_check_ok "${tGRN}Success${tCLR} checking for update... Ver: ${tGRN}${git_version}${tCLR} available"
@@ -3287,7 +3366,7 @@ F_local_script_update() {
 	fi
 
 	F_terminal_padding
-	git_version="$(grep -Fm1 'script_version=' "$script_name_full" | cut -d'=' -f2 | sed "s/'//g")"   # cut script version number from downloaded file
+	git_version="$(F_git_get version)"   # cut script version number from downloaded file
 	F_terminal_show "Change log:"
 
 	case "$update_avail" in
@@ -3298,9 +3377,8 @@ F_local_script_update() {
 	F_replace_var update_avail "none" "$update_src"
 	F_replace_var update_date "$(F_date f)" "$config_src"
 
+	F_log_terminal_ok "This install has been upgraded to version ${git_version}"
 	F_terminal_padding
-
-	F_log_terminal_ok "This install has been upgraded to version $git_version"
 	F_terminal_check "Any key to continue..."
 	read -rsn1
 	F_clean_exit reset
@@ -3443,7 +3521,7 @@ F_integrity_check() {
 
 		# update values in new default config with currently loaded config
 		# build list of vars to update from old config, read them from old and set them
-		sed '/#/d' "$config_src" | cut -d'=' -f1 | sed '/build_settings_version/d' | cut -d'=' -f1 > /tmp/wicens_config_copy.tmp
+		sed '/#/d' "$config_src" | cut -d'=' -f1 | sed '/build_settings_version/d' > /tmp/wicens_config_copy.tmp
 
 		while IFS= read -r config_line
 		do
@@ -3460,7 +3538,7 @@ F_integrity_check() {
 
 	if [ "$config_updated" = 1 ] ; then
 		fw_nvram_check_diff=$((max_fw_nvram_check + 1))   # if updated config force firmware check update
-		F_firmware_check
+		F_firmware_check integrity
 		[ "$run_option" = 'amtmupdate' ] && return 0
 		F_wait 60
 		F_clean_exit reset
@@ -3529,7 +3607,7 @@ F_internet_check() {
 				esac
 
 				sed '$d' "$file_line_remove"
-				F_log "Removed retry line from $file_line_remove"
+				F_log "Removed retry line from ${file_line_remove}"
 			fi
 
 			rm -f "$internet_lock"
@@ -3547,7 +3625,7 @@ F_internet_check() {
 			wait_secs=30
 
 			while [ "$wait_secs" -ne 0 ] ; do
-				F_term_waitdel "$wait_secs before next attempt"
+				F_term_waitdel "${wait_secs} before next attempt"
 				sleep 1
 				wait_secs=$((wait_secs - 1))
 			done
@@ -3601,8 +3679,8 @@ F_compare() {
 		fi
 		return 0
 	else
-		F_terminal_check_ok "WAN IP lookup  - Current WAN IP :  ${tGRN}$current_wan_ip${tCLR}"
-		F_terminal_check_fail "WAN IP compare - Saved WAN IP   :  ${tRED}$saved_wan_ip${tCLR}"
+		F_terminal_check_ok "WAN IP lookup  - Current WAN IP :  ${tGRN}${current_wan_ip}${tCLR}"
+		F_terminal_check_fail "WAN IP compare - Saved WAN IP   :  ${tRED}${saved_wan_ip}${tCLR}"
 		[ -n "$saved_wan_ip" ] && [ "$building_settings" = 0 ] && F_log_terminal_fail "WAN IP has changed to ${current_wan_ip} "
 		if F_printfstr "$current_wan_ip" | F_cgnat_ip ; then
 			F_log_terminal_fail "Notice - New WAN IP ${current_wan_ip} appears to be a CGNAT address"
@@ -3705,9 +3783,9 @@ F_calc_lease() {
 	current_epoch="$(F_date s)"
 	[ -n "$saved_wan_epoch" ] && epoch_diff=$((current_epoch - saved_wan_epoch))
 	if [ -z "$saved_wan_epoch" ] ; then
-		F_printfstr '  0d  0h  0m  0sec'
+		F_printfstr '  0d  0h  0m  0s'
 	else
-		F_printfstr "$(printf '%3dd %2dh %2dm %2dsec\n' $((epoch_diff/86400)) $((epoch_diff%86400/3600)) $((epoch_diff%3600/60)) $((epoch_diff%60)))"
+		F_printfstr "$(printf '%3dd %2dh %2dm %2ds\n' $((epoch_diff/86400)) $((epoch_diff%86400/3600)) $((epoch_diff%3600/60)) $((epoch_diff%60)))"
 	fi
 } # calc_lease
 
@@ -3754,7 +3832,7 @@ F_cru() {
 
 		'create')
 			cru a wicens "${cron_string}"
-			F_log_terminal_ok "Added entry in cron(cru) with ${cron_check_freq}m interval"
+			F_log_terminal_ok "Added ${cron_string} entry in cron(cru) "
 			F_cru check   # update status_cru immediately
 		;;
 
@@ -4107,7 +4185,6 @@ F_settings_test() {
 } # settings_test
 
 F_ready_check() {
-	[ "$status_wanipmon" = 1 ] && return 0   # if wanipmon enabled we dont care if email is configured for cron to run
 	case "$status_email_cfg" in
 		0)
 			if [ "$run_option" = 'tty' ] && [ "$from_menu" = 1 ] ; then
@@ -4118,8 +4195,16 @@ F_ready_check() {
 				F_terminal_show "Use menu option 1 to add settings"
 				F_menu_exit
 			else
+				case "$status_wanipmon" in
+					1)
+						case "$user_wanip_notification" in
+							0) return 0 ;;   # if only wanipmon enabled we dont care if email is configured for cron to run
+						esac
+					;;
+				esac
+				# fw_update/reboot/script_update error
 				F_log "Error - no config or incomplete Email config found in this script"
-				F_log "Run $script_name_full to add a config to this script"
+				F_log "Run ${script_name_full} to add a config to this script"
 				F_clean_exit error
 			fi
 		;;
@@ -4146,21 +4231,26 @@ F_ready_check() {
 F_terminal_header() {
 	clear
 	case "$1" in
-		exit) sed -n '3,8p' "$script_name_full" | sed 's/#//g' | sed 's/^.\{14\}//' ; return 0 ;;
-		'') sed -n '2,11p' "$script_name_full" ; F_printf "${tBACK}${tBACK}#                                                              pid $$ v${script_version}\n" ;;
+		exit) sed -n '3,8p' "$script_name_full" | sed 's/#//g' | sed 's/^.\{16\}//' ; return 0 ;;   # wicens amtm style exit logo
+		'')
+			sed -n '2,11p' "$script_name_full" ; printf "${tBACK}${tBACK}#%77s #\n\n" "pid $$ v${script_version}"   # wicens framed logo w/pid script vers right adjusted
+		;;
 	esac
 
 	case "$fw_build_no" in
-		'384'|'386'|'388') F_printf "       ${tGRN}$(F_date r)${tCLR}    Model: ${tGRN}${fw_device_model}${tCLR} FW: ${tGRN}${fw_build_full}${tCLR}" ;;
-		'374') F_printf "   ${tGRN}$(F_date r)${tCLR}    ${tGRN}${fw_device_model}${tCLR} FW ver: ${tGRN}${fw_build_no}.${fw_build_extend}${tCLR}" ;;
+		'374') header_info="$(printf '%b' "${tGRN}$(F_date r)${tCLR}  Model: ${tGRN}${fw_device_model}${tCLR}  FW ver: ${tGRN}${fw_build_no}.${fw_build_extend}${tCLR}")" ;;
+		*) header_info="$(printf '%b' "${tGRN}$(F_date r)${tCLR}   Model: ${tGRN}${fw_device_model}${tCLR}   FW: ${tGRN}${fw_base}.${fw_build_full}${tCLR}")" ;;
 	esac
-
+	hlen="$(printf '%s' "$header_info" | sed 's/'"$(printf '\033')"'\[[0-9;]*m//g' | wc -c)"   # length w/o ansi escape
+	hleft=$(( (80 - hlen) / 2 ))
+	hright=$(( 80 - hlen - hleft ))
+	printf "%${hleft}s%s%${hright}s\n" "" "$header_info" ""   # print centered for 80 column
 	F_terminal_separator
 
 	case "$building_settings" in
 		1)
 			F_terminal_padding
-			F_printf "[${tGRN} HI${tCLR} ] ${tYEL}===== Welcome to the wicens Email setup wizard =====${tCLR}   E||e to exit"
+			F_menu_title "Hi, welcome to the wicens Email setup wizard"
 			if [ "$selection" = '1f' ] && [ "$amtm_import" = 1 ] ; then
 				F_terminal_warning
 				F_terminal_show "amtm import enabled"
@@ -4169,15 +4259,16 @@ F_terminal_header() {
 		;;
 	esac
 
-	case "$test_mode" in
+	case "$from_menu" in
 		1)
-			F_terminal_padding
-			F_printf "[${tYEL}INFO${tCLR}] ${tYEL}===== Test Mode - Sending 1 test message =====${tCLR}"
+			case "$building_settings" in
+				0) F_terminal_padding ;;
+			esac
 		;;
 	esac
 
-	case "$from_menu" in
-		1) F_terminal_padding ;;
+	case "$test_mode" in
+		1) F_menu_title "Test Mode - Sending test Email message" ;;
 	esac
 
 	return 0
@@ -4188,8 +4279,7 @@ F_status() {
 	F_pg1() {
 		update_rem=$((update_period - update_diff))
 		clear
-		F_printf "${tYEL}============================ wicens status page 1/2=============================${tCLR}"
-		F_terminal_padding
+		F_menu_title "wicens status page 1/2"
 		F_status_grn "Current saved WAN IP" "$saved_wan_ip"
 		F_status_grn "Current Email send to address" "$user_send_to_addr"
 		F_status_grn "Current Email send to CC address" "$user_send_to_cc"
@@ -4288,8 +4378,7 @@ F_status() {
 
 	F_pg2() {
 		clear
-		F_printf "${tYEL}============================ wicens status page 2/2=============================${tCLR}"
-		F_terminal_padding
+		F_menu_title "wicens status page 2/2"
 
 		if [ "$user_wanip_monitor" = 1 ]
 		then F_status_enabled "WAN IP change monitoring"
@@ -4382,7 +4471,7 @@ F_status() {
 		F_terminal_padding
 		F_terminal_check "Any key - previous page   E||e to return to Main Menu"
 		read -rsn1 pg2wait
-		case $pg2wait in
+		case "$pg2wait" in
 			E|e) F_clean_exit reload ;;
 			*) F_pg1 ;;
 		esac
@@ -4395,7 +4484,7 @@ F_status() {
 F_config_verbose() {
 	F_conf_pg1(){
 		clear
-		F_printf "${tYEL}===== Verbose config file status - User Config - 1/2 =====${tCLR}"
+		F_menu_title "Config file contents - User Config - 1/2"
 		while IFS= read -r fileline ; do
 			if F_printfstr "$fileline" | grep -Fq '=' ; then
 				config_var="$(F_printfstr "$fileline" | cut -d'=' -f1)"
@@ -4414,7 +4503,7 @@ F_config_verbose() {
 
 	F_conf_pg2() {
 		clear
-		F_printf "${tYEL}===== Verbose config file status - Core Config - 2/2 =====${tCLR}"
+		F_menu_title "Config file contents - Core Config - 2/2"
 		while IFS= read -r fileline ; do
 			if F_printfstr "$fileline" | grep -Fq '=' ; then
 				config_var="$(F_printfstr "$fileline" | cut -d'=' -f1)"
@@ -4433,6 +4522,19 @@ F_config_verbose() {
 
 	F_conf_pg1
 } # config_verbose
+
+F_menu_title() {
+	title="$1"
+	title_length="$(printf '%s' "$title" | sed 's/'"$(printf '\033')"'\[[0-9;]*m//g' | wc -c)"
+	pad=$(( 78 - title_length - 15 ))
+	tleft=$(( pad / 2 ))
+	tright=$(( pad - tleft ))
+	printf "%b" "$tYEL"
+	printf "%${tleft}s" "" | tr ' ' '='
+	printf " %s   E||e to exit " "$title"
+	printf "%${tright}s\n\n" "" | tr ' ' '='
+	printf "%b" "$tCLR"
+}
 
 F_main_menu() {
 	F_terminal_header
@@ -4561,6 +4663,7 @@ F_main_menu() {
 		;;
 		l|L) F_opt_mail_log ;;
 		m|M)
+			F_menu_title "WAN IP Compare"
 			if ! F_compare ; then
 				building_settings=1
 				F_script_wan_update
@@ -4570,7 +4673,7 @@ F_main_menu() {
 		;;
 		n|N) F_opt_count ;;
 		r|R) F_opt_reset ;;
-		s|S) F_opt_sample ;;
+		s|S) until F_opt_sample ; do : ; done ;;
 		t|T) until F_opt_test ; do : ; done ; F_menu_exit ;;
 		u|U) F_opt_uninstall ;;
 		v|V) F_status && F_menu_exit ;;
@@ -4594,11 +4697,13 @@ F_main_menu() {
 			case "$dual_wan_check" in
 				1)
 					F_replace_var dual_wan_check 0 "$update_src"
-					F_log_terminal_ok "Dual WAN check disabled"
+					F_terminal_check_ok "Dual WAN check ${tRED}disabled${tCLR}"
+					F_log "Dual WAN check disabled"
 				;;
 				0)
 					F_replace_var dual_wan_check 1 "$update_src"
-					F_log_terminal_ok "Dual WAN check enabled"
+					F_terminal_check_ok "Dual WAN check ${tGRN}enabled${tCLR}"
+					F_log "Dual WAN check enabled"
 				;;
 			esac
 			F_menu_exit
@@ -4607,11 +4712,13 @@ F_main_menu() {
 			case "$amtm_update" in
 				0)
 					F_replace_var amtm_update 1 "$config_src"
-					F_log_terminal_ok "amtm automatic updates enabled"
+					F_terminal_check_ok "amtm automatic updates ${tGRN}enabled${tCLR}"
+					F_log "amtm automatic updates enabled"
 				;;
 				1)
 					F_replace_var amtm_update 0 "$config_src"
-					F_log_terminal_ok "amtm automatic updates disabled"
+					F_terminal_check_ok "amtm automatic updates ${tRED}disabled${tCLR}"
+					F_log "amtm automatic updates disabled"
 				;;
 			esac
 			F_menu_exit
@@ -4639,7 +4746,7 @@ F_lock() {
 					rm -f '/tmp/wicens_lock.tty'
 					[ -f '/tmp/wicens_internetlock.tty' ] && rm -f '/tmp/wicens_internetlock.tty' && F_log "Error - Removed tty internet lock, process non-existent"
 					F_terminal_header exit
-					F_log_show "Error - Removed tty lock - Lock age: ${lock_age}s PID: (${lock_pid}) non-existent "
+					F_log_show "Error - Removed tty lock - Lock age: ${lock_age}s PID: ${lock_pid} non-existent "
 				else
 					if [ "$lock_age" -gt 1800 ] ; then   # if terminal has been running for 30 mins kill it and continue
 						kill -9 "$lock_pid" 2> /dev/null
@@ -4660,43 +4767,43 @@ F_lock() {
 				if [ ! -f "/tmp/wicens_lock.${lockfile}" ] ; then
 					[ -f "/tmp/wicens_internetlock.${lockfile}" ] && rm -f "/tmp/wicens_internetlock.${lockfile}"
 				else
-					lock_pid="$(sed -n '2p' "/tmp/wicens_lock.$lockfile")"
-					lock_epoch="$(sed -n '3p' "/tmp/wicens_lock.$lockfile")"
+					lock_pid="$(sed -n '2p' "/tmp/wicens_lock.${lockfile}")"
+					lock_epoch="$(sed -n '3p' "/tmp/wicens_lock.${lockfile}")"
 					lock_age="$(($(F_date s) - lock_epoch))"
 					if [ -z "$lock_pid" ] || [ -z "$lock_epoch" ] || [ -z "$lock_age" ] ; then
-						rm -f "/tmp/wicens_lock.$lockfile"
+						rm -f "/tmp/wicens_lock.${lockfile}"
 						F_log "Error - found /tmp/wicens_lock.${lockfile} but file missing pid/epoch, removed"
 					else
-						if [ "$lock_age" -gt 180 ] ; then
+						if [ "$lock_age" -gt "$lock_age_max" ] ; then
 							if [ -d "/proc/$lock_pid" ] ; then
 								# internet check can run longer than lock_age_max check if thats what the old process is doing
-								if [ -f "/tmp/wicens_internetlock.$lockfile" ] ; then
-									internetlock_age="$(sed -n '1p' "/tmp/wicens_internetlock.$lockfile")"
-									if [ "$(($(F_date s) - internetlock_age))" -gt 315 ] ; then
+								if [ -f "/tmp/wicens_internetlock.${lockfile}" ] ; then
+									internetlock_age="$(sed -n '1p' "/tmp/wicens_internetlock.${lockfile}")"
+									if [ "$(($(F_date s) - internetlock_age))" -gt "$internet_lock_max" ] ; then
 										kill -9 "$lock_pid" 2> /dev/null
-										rm -f "/tmp/wicens_lock.$lockfile"
-										rm -f "/tmp/wicens_internetlock.$lockfile"
+										rm -f "/tmp/wicens_lock.${lockfile}"
+										rm -f "/tmp/wicens_internetlock.${lockfile}"
 										F_log_terminal_fail "Error - found wicens_lock.${lockfile} ${lock_age}s and internet lock ${internetlock_age}s, killed process ${lock_pid} and removed locks"
 									else
-										F_log_terminal_fail "Error - found wicens_lock.${lockfile} ${lock_age}s and internet_lock ${internetlock_age}s, internet lock not over age limit(5 mins)... exiting"
+										F_log_terminal_fail "Error - found wicens_lock.${lockfile} ${lock_age}s and internet_lock ${internetlock_age}s, internet lock not over age limit(${internet_lock_max}s)... exiting"
 										exit 0
 									fi
 								else
 									kill -9 "$lock_pid" 2> /dev/null
 									rm -f "/tmp/wicens_lock.${lockfile}" 2> /dev/null
-									F_log_terminal_fail "Error - Killed process pid ${lock_pid} started by ${lockfile} over age limit(180) ${lock_age}"
+									F_log_terminal_fail "Error - Killed process pid ${lock_pid} started by ${lockfile} over age limit(${lock_age_max}) ${lock_age}"
 								fi
 							else
-								F_log_terminal_fail "Error - Process doesn't exit - process lock age: ${lock_age} secs Max:180, removing lock"
+								F_log_terminal_fail "Error - Process doesn't exit - process lock age: ${lock_age} secs Max:${lock_age_max}, removing lock"
 								rm -f "/tmp/wicens_lock.${lockfile}" 2> /dev/null
-								[ -f "/tmp/wicens_internetlock.$lockfile" ] && rm -f "/tmp/wicens_internetlock.$lockfile"
+								[ -f "/tmp/wicens_internetlock.$lockfile" ] && rm -f "/tmp/wicens_internetlock.${lockfile}"
 							fi
 						else
 							# prevent cron from running while any other valid automated call is running
 							F_terminal_header
 							F_terminal_warning
 							F_log_terminal_fail "Script already running - locked by ${lockfile} pid ${lock_pid} running ${lock_age} secs"
-							F_log_show "$((180 - lock_age)) secs remaining till lock purge possible if necessary"
+							F_log_show "$((lock_age_max - lock_age)) secs remaining till lock purge possible if necessary"
 							[ "$run_option" = 'cron' ] && exit 0
 							[ "$run_option" = 'tty' ] && F_menu_exit
 						fi
@@ -4704,12 +4811,13 @@ F_lock() {
 				fi
 			done
 		;;
+
 		*)
 			if [ -f "wicens_lock.${run_option}" ] ; then
-				lock_pid="$(sed -n '2p' "/tmp/wicens_lock.$run_option")"
-				lock_epoch="$(sed -n '3p' "/tmp/wicens_lock.$run_option")"
+				lock_pid="$(sed -n '2p' "/tmp/wicens_lock.${run_option}")"
+				lock_epoch="$(sed -n '3p' "/tmp/wicens_lock.${run_option}")"
 				lock_age="$(($(F_date s) - lock_epoch))"
-				F_log "Error - lock file exists for this call type Aged:${lock_age}secs max:180 PID:$lock_pid"
+				F_log "Error - lock file exists for this call type Aged:${lock_age}secs max:${lock_age_max} PID:${lock_pid}"
 				exit 2
 			fi
 		;;
@@ -4726,7 +4834,7 @@ F_lock() {
 } # lock
 
 F_ntp() {
-	ntp_lock="/tmp/wicens_ntplock.$run_option"
+	ntp_lock="/tmp/wicens_ntplock.${run_option}"
 	[ -f "$ntp_lock" ] && exit 0   # script already running waiting on NTP sync
 
 	F_uptime
@@ -4754,6 +4862,7 @@ F_ntp() {
 			if [ "$ntp_wait_time" -ge 600 ] ; then
 				F_log_show "NTP failed to sync and update router time after 10 mins of checking"
 				F_log_show "Please check your NTP configuration"
+				rm -f "$ntp_lock"
 				F_clean_exit
 			fi
 
@@ -4768,11 +4877,11 @@ F_ntp() {
 	run_date="$(F_date f)"
 	run_epoch="$(F_date s)"
 
-	# lock script from duplicate runs
-	F_lock
-
 	# time is set load user settings
 	F_user_settings
+
+	# lock script from duplicate runs
+	F_lock
 
 	# if auto run check Script eg amtm enabled - any notification enabled - but they delete their amtm config we'll spam the log
 	case "$1" in
@@ -4805,9 +4914,11 @@ case "$run_option" in
 	;;
 
 	'tty') # only check alias/FW ver with terminal runs
+		[ ! -d "$script_dir" ] && F_installer
+
 		F_ntp
-		F_firmware_check
 		F_alias   # installed with F_firmware_check, checked here (sanity check)
+		[ "$fw_nvram_check_diff" -gt "$max_fw_nvram_check" ] && F_firmware_check
 
 		# if Email send failed we need to clear out the file for future
 		if [ -f "$wicens_wanip_retry" ] || [ -f "$wicens_fw_retry" ] || [ -f "$wicens_update_retry" ] || [ -f "$wicens_send_retry" ] || [ -f "$wicens_reboot_retry" ] ; then
@@ -4840,7 +4951,7 @@ case "$run_option" in
 	'wancall') # wan-event call
 		F_ntp noterminal
 		new_wancall_count="$((wancall_run_count + 1))"
-		F_log_show "Started by 'wan-event connected' trigger, sleeping $wan_event_wait seconds before running IP compare"
+		F_log_show "Started by 'wan-event connected' trigger, sleeping ${wan_event_wait} seconds before running IP compare"
 		F_replace_var wancall_run_count "$new_wancall_count" "$config_src"
 		F_replace_var last_wancall_run "$run_date" "$config_src"
 		sleep "$wan_event_wait"   # let connection settle before checking anything
@@ -4850,7 +4961,7 @@ case "$run_option" in
 
 		if ! F_compare ; then
 			if [ "$user_wanip_notification" = 1 ] ; then
-				F_wanip_email_msg
+				F_email_wanip
 			else
 				F_script_wan_update
 			fi
@@ -4861,11 +4972,11 @@ case "$run_option" in
 	'reboot') # router reboot call
 		F_ntp noterminal
 		[ -f "$wicens_reboot_retry" ] && rm -f "$wicens_reboot_retry"   # should never execute but due diligence
-		F_log_show "Started by services-start, reboot detected, sending reboot notification in $reboot_notify_wait seconds"
+		F_log_show "Started by services-start, reboot detected, sending reboot notification in ${reboot_notify_wait} seconds"
 
-		# set 1 at start of attempt set to 0 by F_reboot_email_msg on msg success and checked by cron
+		# set 1 at start of attempt set to 0 by F_email_reboot on msg success and checked by cron
 		F_replace_var reboot_notify_state 1 "$update_src"
-		F_reboot_email_msg
+		F_email_reboot
 		F_clean_exit
 	;;
 
@@ -4874,11 +4985,11 @@ case "$run_option" in
 		# called by update-notification event
 		F_uptime && [ "$router_uptime" -lt 600 ] && sleep 60   # router up less than 10 mins wait 1 mins before sending
 		[ -f "$wicens_fw_retry" ] && rm -f "$wicens_fw_retry"   # if retry file exists remove, we were called by update-notification again
-		F_log_show "Started by update-notification trigger, sending firmware update notification"
+		F_log_show "Started by update-notification trigger, sending firmware update notification to ${user_send_to_addr}"
 
-		# set 1 at start of attempt set to 0 by F_fw_update_email_msg msg success and checked by cron
+		# set 1 at start of attempt set to 0 by F_email_fw_update msg success and checked by cron
 		F_replace_var fw_notify_state 1 "$update_src"
-		F_fw_update_email_msg
+		F_email_fw_update
 		F_clean_exit
 	;;
 
@@ -4891,14 +5002,14 @@ case "$run_option" in
 			F_log_show "Error, script called as forwarder but no Email message defined"
 			F_clean_exit fail
 		elif [ ! -f "$fwd_send_msg" ] ; then
-			F_log_show "Error, script called as forwarder but can't find $fwd_send_msg Email message"
+			F_log_show "Error, script called as forwarder but can't find ${fwd_send_msg} Email message"
 			F_clean_exit fail
 		fi
 
 		if [ -n "$fwd_send_addr" ] ; then
-			F_log_terminal_ok "script started as forwarder, attempting to send $fwd_send_msg to $fwd_send_addr"
+			F_log_terminal_ok "script started as forwarder, attempting to send ${fwd_send_msg} to ${fwd_send_addr}"
 		else
-			F_log_terminal_ok "script started as forwarder, attempting to send $fwd_send_msg to $user_send_to_addr"
+			F_log_terminal_ok "script started as forwarder, attempting to send ${fwd_send_msg} to ${user_send_to_addr}"
 		fi
 
 		if F_opt_forward ; then
@@ -4923,10 +5034,10 @@ case "$run_option" in
 		weekly_wancall_total=$((wancall_run_count - last_wancall_log_count))   # log msg count
 
 		if [ "$(/bin/date +'%u')" = 7 ] && [ "$log_cron_msg" = 1 ] && [ "$(/bin/date +'%H')" = 18 ] ; then
-			F_log "Started successfully by wan-event connected $weekly_wancall_total times in the last week, $wancall_run_count times since $created_date"
-			F_log "Last wan-event connected trigger $last_wancall_run"
-			F_log "Recorded $ip_change_count IP change(s) since install"
-			F_uptime && F_log "Router uptime $uptime_pretty"
+			F_log "Started successfully by wan-event connected ${weekly_wancall_total} times in the last week, ${wancall_run_count} times since ${created_date}"
+			F_log "Last wan-event connected trigger ${last_wancall_run}"
+			F_log "Recorded ${ip_change_count} IP change(s) since install"
+			F_uptime && F_log "Router uptime ${uptime_pretty}"
 			F_replace_var last_wancall_log_count "$wancall_run_count" "$config_src"
 			F_replace_var log_cron_msg 0 "$config_src"
 		fi
@@ -4958,13 +5069,13 @@ case "$run_option" in
 			if [ "$(wc -l < "$wicens_update_retry")" -le "$max_email_retry" ] ; then
 				F_internet_check update
 				if [ "$update_avail" = 'hotfix' ] ; then
-					F_log "Hotfix update for ver $script_version available, run manually to update"
+					F_log "Hotfix update for ver ${script_version} available, run manually to update"
 				else
-					F_log "Update to ver $update_avail available, run manually to update"
+					F_log "Update to ver ${update_avail} available, run manually to update"
 				fi
 
 				F_log "Sending script update notification Email to ${user_send_to_addr}"
-				F_script_update_email_msg
+				F_email_script_update
 			else
 				F_log "Critical error, attempted to send script update Email $max_email_retry times, giving up"
 				F_replace_var update_notify_state 1 "$update_src"   # set like we had success to only log error 1 time
@@ -4978,13 +5089,13 @@ case "$run_option" in
 
 			# dont exit continue to forwarder/ipcheck
 			if [ "$(wc -l < "$wicens_fw_retry")" -le "$((max_email_retry + 2))" ] ; then   # retry created in wicens fwupdate
-				F_fw_update_email_msg
+				F_email_fw_update
 			else
 				# check age of retries if over reset and start over
 				wicens_fw_retry_age=$((run_epoch - wicens_fw_retry_time))
 				if [ "$wicens_fw_retry_age" -gt "$retry_wait_period" ] ; then
 					rm -f "$wicens_fw_retry"
-					F_fw_update_email_msg
+					F_email_fw_update
 				fi
 			fi
 		fi
@@ -4995,12 +5106,12 @@ case "$run_option" in
 			source "$wicens_reboot_retry"
 
 			if [ "$(wc -l < "$wicens_reboot_retry")" -le "$((max_email_retry + 2))" ] ; then   # retry created in reboot_email
-				F_reboot_email_msg
+				F_email_reboot
 			else
 				wicens_reboot_retry_age=$((run_epoch - wicens_reboot_retry_time))
 				if [ "$wicens_reboot_retry_age" -gt "$retry_wait_period" ] ; then
 					rm -f "$wicens_reboot_retry"
-					F_reboot_email_msg
+					F_email_reboot
 				fi
 			fi
 		fi
@@ -5039,7 +5150,7 @@ case "$run_option" in
 				fi
 
 				if [ "$user_wanip_notification" = 1 ] ; then
-					F_wanip_email_msg   # sets wicens_wanip_retry, clears on success
+					F_email_wanip   # sets wicens_wanip_retry, clears on success
 				else
 					F_script_wan_update
 				fi
