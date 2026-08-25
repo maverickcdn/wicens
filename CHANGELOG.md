@@ -1,5 +1,12 @@
 # wicens change log
 -----------------
+## 4.17
+Aug 24 2026
+* FIXED: option R reset was critically broken since 4.16
+* FIXED: amtmupdate hang after upgrade in F_fw_write
+* FIXED: changelog for hotfix
+* CHANGED: ministun success test
+
 ## 4.16
 Aug 21 2026
 * ADDED: any variable from config files can be added to wanip/fw/reboot/script custom subject or custom text
