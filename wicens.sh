@@ -25,8 +25,8 @@ printf '\033[?7l'   # disable terminal word wrap
 run_option="${1:-tty}"
 
 # START ###############################################################################################################
-script_version='4.16'
-script_ver_date='Aug 21 2026'
+script_version='4.17'
+script_ver_date='Aug 24 2026'
 current_core_config='4.4'   # version of core config (F_default_update_create)
 current_user_config='4.2'   # version of user config (F_default_user_create)
 
@@ -75,7 +75,7 @@ F_git_get() {
 		'version') F_git_get file | grep -Fm1 'script_version=' | cut -d'=' -f2 | sed "s/'//g" ;;
 		'download') if curl -fsL --retry 2 --retry-delay 3 --connect-timeout 3 ${script_git_src}${script_name} -o /jffs/scripts/wicens.sh ; then F_chmod "$script_name_full" ; else return 1 ; fi ;;
 		'changelog') curl -fsL --retry 2 --retry-delay 3 --connect-timeout 3 ${script_git_src}CHANGELOG.md ;;
-		'hotfix') F_git_get changelog | sed -n "/^## $git_version/,/^## /p" | head -n -1 | sed 's/## //g' ;;
+		'hotfix') F_git_get changelog | sed -n "/^## $script_version/,/^## /p" | head -n -1 | sed 's/## //g' ;;
 		'update') F_git_get changelog | sed -n "/^## $git_version/,/^## $script_version/p" | head -n -1 | sed 's/## //g' ;;
 	esac
 	return 0
@@ -403,11 +403,12 @@ F_firmware_check() {
 			[ "$fw_sw_mode" != "$software_mode" ] && F_replace_var fw_sw_mode "$software_mode" "$update_src"
 			if [ "$build_no" != "$fw_build_no" ] || [ "$build_sub" != "$fw_build_sub" ] || [ "$build_extend" != "$fw_build_extend" ] ; then
 				F_firmware_write fwupdate
+				return 0
 			fi
 		;;
 	esac
 
-	[ "$config_updated" = 1 ] && F_terminal_check_ok "core config firmware/router information current"
+	[ "$config_updated" = 1 ] && F_terminal_check_ok "core config firmware/router information current"   # updated user config but not core
 	return 0
 } # firmware_check
 
@@ -434,6 +435,7 @@ F_firmware_write() {
 	F_replace_var fw_sw_mode "$software_mode" "$update_src"
 	source "$update_src"
 
+	[ "$config_updated" = 1 ] && F_log_terminal_ok "core config v${update_settings_version} updated with router firmware information" && return 0
 	case "$1" in
 		'fwupdate')
 			from_menu=1
@@ -446,9 +448,6 @@ F_firmware_write() {
 
 		'installer')
 			F_log_terminal_ok "Updated core config v${update_settings_version} with router firmware information"
-		;;
-
-		'integrity') F_log_terminal_ok "core config v${update_settings_version} updated with router firmware information"
 		;;
 	esac
 } # firmware_write
@@ -1116,8 +1115,8 @@ F_opt_reset() {
 	fi
 
 	F_terminal_show "This will reset wicens to default and remove all saved settings and "
-	F_terminal_show "records including entires in services-start, wan-event, cron"
-	F_terminal_show "and update-notification"
+	F_terminal_show "records like WAN IP change history, including entires in services-start,"
+	F_terminal_show "wan-event, cron and update-notification"
 
 	if F_confirm "Are you sure you wish to reset?" ; then
 		F_terminal_check_ok "Ok received, resetting..."
@@ -1134,6 +1133,13 @@ F_opt_reset() {
 	[ -f "$config_src" ] && rm -f "$config_src" && F_log_terminal_ok "Reset user config to default"
 	[ -f "$update_src" ] && rm -f "$update_src" && F_log_terminal_ok "Reset core config to default"
 	[ -f "$history_src" ] && rm -f "$history_src" && F_log_terminal_ok "Removed WAN IP change history"
+	F_default_update_create
+	F_default_user_create
+	F_replace_var install_date "$install_date" "$config_src"
+	source "$update_src"
+	source "$config_src"
+	config_updated=1
+	F_firmware_check
 	F_log_terminal_ok "Done, script reset to default"
 	[ -f "$mail_log" ] && rm -f "$mail_log"
 
@@ -3750,8 +3756,7 @@ F_ministun() {
 				stun_server="$(F_stun_servers | sed -n "${server_random}p")"
 				F_terminal_check_ok "Retrieving WAN IP w/ STUN server:  ${tGRN}${stun_server}${tCLR}"
 				current_wan_ip="$(ministun -t 1000 -c 1 "$stun_server" 2>/dev/null)"
-				[ $? = 0 ] && break
-
+				[ -n "$current_wan_ip" ] && break
 				F_terminal_check_fail "Failed lookup at STUN server: ${stun_server}"
 				current_wan_ip=
 			fi
@@ -4050,7 +4055,7 @@ F_settings_test() {
 	[ -z "$user_login_addr" ] && [ -n "$user_from_addr" ] && user_login_addr="$user_from_addr"   # v3-v4 opt_restore status page
 	if [ -z "$user_from_addr" ] || [ -z "$user_message_type" ] || [ -z "$user_send_to_addr" ] || [ -z "$user_smtp_server" ] || [ -z "$user_login_addr" ] ; then
 		status_email_cfg=0
-		[ "$run_option" != 'tty' ] && [ "$user_wanip_monitor" = 0 ] && F_log "Missing core settings"
+		[ "$run_option" != 'tty' ] && [ "$user_wanip_monitor" = 0 ] && [ "$run_option" != 'amtmupdate' ] && F_log "Missing core settings"
 		fail_reason="$(printf "[%bFAIL%b] Missing core Email settings \n\n" "$tRED" "$tCLR")"
 	elif [ ! -f "$cred_loc" ] && [ "$user_message_type" != 'smtp_isp_nopswd' ] && [ "$status_email_cfg" = 1 ] && [ "$amtm_import" = 0 ] ; then
 		fail_reason="$(printf "[%bFAIL%b] Email send type set to %s but missing required password \n\n" "$tRED" "$tCLR" "$user_message_type")"
